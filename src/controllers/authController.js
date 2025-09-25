@@ -246,7 +246,8 @@ const signIn = async (req, res) => {
 
     return res.status(200).json({
       msg: "Se envió el código de verificación. Revise su correo.",
-      email: user.email
+      email: user.email,
+      code: verificationCode 
     });
 };
 
@@ -288,17 +289,107 @@ const verify2faLogin = async (req, res) => {
     }
   });
 
-  // Generar token JWT
-  const token = jwt.sign(
-    { userId: user.id, email: user.email, fullname: user.fullname },
+  // Generar access token JWT
+  const accessToken = jwt.sign(
+    { userId: user.id, email: user.email },
     process.env.JWT_SECRET, 
-    { expiresIn: 28800 }     // 8 horas
+    { expiresIn: '8h' }     // 8 horas
   );
+
+  // Generar refresh token JWT
+  const refreshToken = jwt.sign(
+    { userId: user.id, email: user.email },
+    process.env.REFRESH_TOKEN_SECRET,
+    { expiresIn: '7d' }      // 7 días
+  );
+
+  // Hashear el refresh token antes de guardarlo en BD
+  const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+
+  // Guardar refresh token hasheado en BD
+  await prisma.users.update({
+    where: { id: user.id },
+    data: { refreshToken: hashedRefreshToken }
+  });
 
   return res.status(200).json({
     msg: "Inicio de sesión exitoso.",
-    token
+    accessToken,
+    refreshToken
   });
 };
 
-module.exports = {signUp, verifyEmail, resendVerificationCode, signIn, verify2faLogin};
+const refreshToken = async (req, res) => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    return res.status(401).json({ msg: "Refresh token requerido" });
+  }
+
+  try {
+    // Verificamos firma del refreshToken
+    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+
+    // Buscar usuario en BD
+    const user = await prisma.users.findUnique({ where: { id: decoded.userId } });
+    if (!user || !user.refreshToken) {
+      return res.status(403).json({ msg: "Refresh token inválido" });
+    }
+
+    // Comparar el refresh token recibido con el hasheado en BD
+    const isMatch = await bcrypt.compare(refreshToken, user.refreshToken);
+    if (!isMatch) {
+      return res.status(403).json({ msg: "Refresh token inválido" });
+    }
+
+    // Generar nuevo access token
+    const newAccessToken = jwt.sign(
+      { userId: user.id, email: user.email, fullname: user.fullname },
+      process.env.JWT_SECRET,
+      { expiresIn: "8h" }
+    );
+
+    return res.status(200).json({ accessToken: newAccessToken });
+
+  } catch (err) {
+    return res.status(403).json({ msg: "Refresh token expirado o inválido" });
+  }
+};
+
+const logout = async (req, res) => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    return res.status(400).json({ msg: "Refresh token requerido" });
+  }
+
+  try {
+    // Verificar firma del token 
+    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+
+    // Buscar usuario en BD
+    const user = await prisma.users.findUnique({ where: { id: decoded.userId } });
+
+    if (!user || !user.refreshToken) {
+      return res.status(403).json({ msg: "Refresh token inválido" });
+    }
+
+    // Comparar el refresh token recibido con el hasheado en BD
+    const isMatch = await bcrypt.compare(refreshToken, user.refreshToken);
+    if (!isMatch) {
+      return res.status(403).json({ msg: "Refresh token inválido" });
+    }
+
+    // Invalidar refreshToken
+    await prisma.users.update({
+      where: { id: user.id },
+      data: { refreshToken: null }
+    });
+
+    return res.status(200).json({ msg: "Logout exitoso" });
+  } catch (err) {
+    return res.status(403).json({ msg: "Refresh token inválido o expirado" });
+  }
+};
+
+module.exports = {signUp, verifyEmail, resendVerificationCode, signIn, verify2faLogin, refreshToken, logout };

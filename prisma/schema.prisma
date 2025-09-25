@@ -21,10 +21,10 @@ model Users {
   status                  String    @default("PENDING") // PENDING, ACTIVE, INACTIVE
   verificationCode        String?
   verificationCodeExpires DateTime?
+  refreshToken            String?
   current_password        String
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
-  role                    Role      
 }
 
 enum Role {
