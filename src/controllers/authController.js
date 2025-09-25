@@ -1,10 +1,11 @@
 const { PrismaClient } = require("../generated/prisma");
 const prisma = new PrismaClient();
 const bcrypt = require("bcrypt");
-const e = require("express");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
-const { generateVerificationCode, sendVerificationEmail } = require("../config/emailConfig");
+const { generateVerificationCode, sendVerificationEmail, sendLoginVerificationEmail } = require("../config/emailConfig");
+
+require('dotenv').config();
 
 const signUp = async (req, res) => {
     let { email, current_password, fullname } = req.body;
@@ -37,7 +38,6 @@ const signUp = async (req, res) => {
     let userExists = await prisma.users.findUnique({where: { email }});
     if (userExists) {
         return res.status(400).json({ msg: "El correo electronico ya está registrado." });
-        console.log(userExists);
     }
 
     //incluye el codigo de verificacion --> 15 minutos
@@ -185,7 +185,120 @@ const resendVerificationCode = async (req, res) => {
 
 const signIn = async (req, res) => {
     let { email, current_password } = req.body;
-    console.log(req.body);
+
+    // Validar campos obligatorios
+    if (!email || !current_password) {
+      return res.status(400).json({ msg: "Faltan datos obligatorios." });
+    }
+
+    // Normalizar email
+    email = email.toLowerCase().trim();
+
+    // Validar formato de email
+    const emailregex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailregex.test(email)) {
+      return res.status(400).json({ msg: "Formato de correo electrónico incorrecto." });
+    }
+
+    // Validar longitud mínima de contraseña
+    if (current_password.length < 6) {
+      return res.status(400).json({ msg: "La contraseña debe tener al menos 6 caracteres." });
+    }
+
+    // Buscar usuario por email
+    const user = await prisma.users.findUnique({ where: { email } });
+    if (!user) {
+      return res.status(404).json({ msg: "Usuario no encontrado." });
+    }
+
+    // Revisar estado
+    if (user.status !== "ACTIVE") {
+      return res.status(403).json({ msg: "La cuenta aún no ha sido verificada." });
+    }
+
+    // Comparar contraseña
+    const validPassword = await bcrypt.compare(current_password, user.current_password);
+    if (!validPassword) {
+      return res.status(401).json({ msg: "Contraseña incorrecta." });
+    }
+
+    // Generar nuevo código de verificación para 2FA
+    const verificationCode = generateVerificationCode();
+    const verificationExpires = new Date();
+    verificationExpires.setMinutes(verificationExpires.getMinutes() + 10); // 10 min
+
+    // Guardar código temporal en BD
+    await prisma.users.update({
+        where: { id: user.id },
+        data: {
+            verificationCode,
+            verificationCodeExpires: verificationExpires
+        }
+    });
+
+    const emailResult = await sendLoginVerificationEmail(user.email, user.fullname, verificationCode);
+
+    if (!emailResult.success) {
+      return res.status(500).json({ 
+        msg: "Error enviando el email de verificación. Intente nuevamente." 
+      });
+    }
+
+    return res.status(200).json({
+      msg: "Se envió el código de verificación. Revise su correo.",
+      email: user.email
+    });
 };
 
-module.exports = {signUp, verifyEmail, resendVerificationCode, signIn};
+const verify2faLogin = async (req, res) => {
+  const { email, code } = req.body;
+
+  // Validar datos
+  if (!email || !code) {
+    return res.status(400).json({ msg: "Faltan datos obligatorios." });
+  }
+
+  // Buscar usuario
+  const user = await prisma.users.findUnique({ where: { email } });
+  if (!user) {
+    return res.status(404).json({ msg: "Usuario no encontrado." });
+  }
+
+  // Verificar si existe código en BD
+  if (!user.verificationCode || !user.verificationCodeExpires) {
+    return res.status(400).json({ msg: "No se ha solicitado verificación de 2FA." });
+  }
+
+  // Verificar expiración
+  if (new Date() > user.verificationCodeExpires) {
+    return res.status(400).json({ msg: "El código ha expirado." });
+  }
+
+  // Comparar código
+  if (user.verificationCode !== code) {
+    return res.status(401).json({ msg: "Código incorrecto." });
+  }
+
+  // Código correcto, limpiar campos de verificación
+  await prisma.users.update({
+    where: { id: user.id },
+    data: {
+      verificationCode: null,
+      verificationCodeExpires: null
+    }
+  });
+
+  // Generar token JWT
+  const token = jwt.sign(
+    { userId: user.id, email: user.email, fullname: user.fullname },
+    process.env.JWT_SECRET, 
+    { expiresIn: 28800 }     // 8 horas
+  );
+
+  return res.status(200).json({
+    msg: "Inicio de sesión exitoso.",
+    token
+  });
+};
+
+module.exports = {signUp, verifyEmail, resendVerificationCode, signIn, verify2faLogin};
