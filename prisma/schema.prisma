@@ -18,13 +18,27 @@ model Users {
   id                      String    @id @default(auto()) @map("_id") @db.ObjectId
   email                   String    @unique
   fullname                String
-  status                  String    @default("PENDING") // PENDING, ACTIVE, INACTIVE
+  status                  String    @default("PENDING") // PENDING, ACTIVE, INACTIVE, LOCKED
   verificationCode        String?
   verificationCodeExpires DateTime?
   refreshToken            String?
   current_password        String
+  failedAttempts          Int       @default(0)
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String?  @db.ObjectId
+  email     String
+  action    String // LOGIN, LOGOUT, 2FA, LOGIN_FAILED
+  outcome   String // SUCCESS, FAILURE
+  reason    String?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum Role {

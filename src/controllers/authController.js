@@ -4,6 +4,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const { generateVerificationCode, sendVerificationEmail, sendLoginVerificationEmail } = require("../config/emailConfig");
+const auditService = require("../services/auditService");
 
 require('dotenv').config();
 
@@ -211,6 +212,11 @@ const signIn = async (req, res) => {
       return res.status(404).json({ msg: "Usuario no encontrado." });
     }
 
+    // Revisar si la cuenta está bloqueada
+    if (user.status === "LOCKED") {
+      return res.status(403).json({ msg: "La cuenta está bloqueada por demasiados intentos fallidos." });
+    }
+
     // Revisar estado
     if (user.status !== "ACTIVE") {
       return res.status(403).json({ msg: "La cuenta aún no ha sido verificada." });
@@ -219,7 +225,41 @@ const signIn = async (req, res) => {
     // Comparar contraseña
     const validPassword = await bcrypt.compare(current_password, user.current_password);
     if (!validPassword) {
-      return res.status(401).json({ msg: "Contraseña incorrecta." });
+      const newFailedAttempts = user.failedAttempts + 1;
+      const newStatus = newFailedAttempts >= 5 ? "LOCKED" : user.status;
+
+      await prisma.users.update({
+        where: { id: user.id },
+        data: {
+          failedAttempts: newFailedAttempts,
+          status: newStatus
+        }
+      });
+
+      // Loguear intento fallido
+      await auditService.logEvent({
+        userId: user.id,
+        email: user.email,
+        action: "LOGIN",
+        outcome: "FAILURE",
+        reason: "Contraseña incorrecta",
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      // Si la cuenta se bloquea, loguear el evento
+      if (newStatus === "LOCKED") {
+        await auditService.logEvent({
+          userId: user.id,
+          email: user.email,
+          action: "ACCOUNT_LOCK",
+          outcome: "SUCCESS",
+          reason: "Cuenta bloqueada por intentos fallidos",
+          ip: req.ip,
+          userAgent: req.headers["user-agent"],
+        });
+      }
+      return res.status(401).json({ msg: "Contraseña incorrecta.", attempts: newFailedAttempts });
     }
 
     // Generar nuevo código de verificación para 2FA
@@ -277,6 +317,14 @@ const verify2faLogin = async (req, res) => {
 
   // Comparar código
   if (user.verificationCode !== code) {
+    await auditService.logEvent({
+      userId: user.id,
+      email: user.email,
+      action: "2FA",
+      outcome: "FAILURE",
+      reason: "Código inválido",
+      ip: req.ip,
+    });
     return res.status(401).json({ msg: "Código incorrecto." });
   }
 
@@ -310,6 +358,21 @@ const verify2faLogin = async (req, res) => {
   await prisma.users.update({
     where: { id: user.id },
     data: { refreshToken: hashedRefreshToken }
+  });
+
+  await prisma.users.update({
+    where: { id: user.id },
+    data: { failedAttempts: 0 }
+  });
+
+  await auditService.logEvent({
+    userId: user.id,
+    email: user.email,
+    action: "LOGIN",
+    resource: "USUARIO",
+    outcome: "SUCCESS",
+    ip: req.ip,
+    userAgent: req.headers["user-agent"],
   });
 
   return res.status(200).json({
@@ -384,6 +447,15 @@ const logout = async (req, res) => {
     await prisma.users.update({
       where: { id: user.id },
       data: { refreshToken: null }
+    });
+
+    await auditService.logEvent({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      action: "LOGOUT",
+      outcome: "SUCCESS",
+      ip: req.ip,
     });
 
     return res.status(200).json({ msg: "Logout exitoso" });
