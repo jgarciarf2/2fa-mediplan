@@ -3,13 +3,13 @@ const prisma = new PrismaClient();
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
-const { generateVerificationCode, sendVerificationEmail, sendLoginVerificationEmail } = require("../config/emailConfig");
+const { generateVerificationCode, sendVerificationEmail, sendLoginVerificationEmail, sendPasswordResetEmail } = require("../config/emailConfig");
 const auditService = require("../services/auditService");
 
 require('dotenv').config();
 
 const signUp = async (req, res) => {
-    let { email, current_password, fullname } = req.body;
+    let { email, current_password, fullname, role, departmentId } = req.body;
     if (!email || !current_password || !fullname) {
         return res.status(400).json({ msg: "Faltan datos obligatorios." });
     }
@@ -52,7 +52,9 @@ const signUp = async (req, res) => {
             email,
             current_password: await bcrypt.hash(current_password, 10),
             fullname,
+            role: role || "USER",
             status: 'PENDING',
+            departmentId: departmentId || null,
             verificationCode: verificationCode,
             verificationCodeExpires: verificationExpires
         }
@@ -126,10 +128,8 @@ const verifyEmail = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({
-      message: "Error interno del servidor",
-    });
-  }
+      return res.status(500).json({message: "Error interno del servidor: " + error.message});
+    }
 };
 
 const resendVerificationCode = async (req, res) => {
@@ -328,7 +328,7 @@ const verify2faLogin = async (req, res) => {
     return res.status(401).json({ msg: "Código incorrecto." });
   }
 
-  // Código correcto, limpiar campos de verificación
+  // Limpiar código de verificación
   await prisma.users.update({
     where: { id: user.id },
     data: {
@@ -339,14 +339,14 @@ const verify2faLogin = async (req, res) => {
 
   // Generar access token JWT
   const accessToken = jwt.sign(
-    { userId: user.id, email: user.email },
+    { userId: user.id, email: user.email, role: user.role, departmentId: user.departmentId },
     process.env.JWT_SECRET, 
     { expiresIn: '8h' }     // 8 horas
   );
 
   // Generar refresh token JWT
   const refreshToken = jwt.sign(
-    { userId: user.id, email: user.email },
+    { userId: user.id, email: user.email, role: user.role },
     process.env.REFRESH_TOKEN_SECRET,
     { expiresIn: '7d' }      // 7 días
   );
@@ -407,7 +407,7 @@ const refreshToken = async (req, res) => {
 
     // Generar nuevo access token
     const newAccessToken = jwt.sign(
-      { userId: user.id, email: user.email, fullname: user.fullname },
+      { userId: user.id, email: user.email, role: user.role, departmentId: user.departmentId },
       process.env.JWT_SECRET,
       { expiresIn: "8h" }
     );
@@ -415,7 +415,7 @@ const refreshToken = async (req, res) => {
     return res.status(200).json({ accessToken: newAccessToken });
 
   } catch (err) {
-    return res.status(403).json({ msg: "Refresh token expirado o inválido" });
+    return res.status(403).json({ msg: "Refresh token expirado o inválido: " + err.message });
   }
 };
 
@@ -452,7 +452,6 @@ const logout = async (req, res) => {
     await auditService.logEvent({
       userId: user.id,
       email: user.email,
-      role: user.role,
       action: "LOGOUT",
       outcome: "SUCCESS",
       ip: req.ip,
@@ -460,8 +459,98 @@ const logout = async (req, res) => {
 
     return res.status(200).json({ msg: "Logout exitoso" });
   } catch (err) {
-    return res.status(403).json({ msg: "Refresh token inválido o expirado" });
+    return res.status(403).json({ msg: "Refresh token inválido o expirado: " + err.message });
   }
 };
 
-module.exports = {signUp, verifyEmail, resendVerificationCode, signIn, verify2faLogin, refreshToken, logout };
+const requestPasswordReset = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ msg: "El email es requerido." });
+  }
+
+  const user = await prisma.users.findUnique({ where: { email: email.toLowerCase().trim() } });
+
+  if (!user) {
+    return res.status(404).json({ msg: "Usuario no encontrado." });
+  }
+
+  // Generar código de verificación
+  const verificationCode = generateVerificationCode();
+  const verificationCodeExpires = new Date();
+  verificationCodeExpires.setMinutes(verificationCodeExpires.getMinutes() + 15);
+
+  await prisma.users.update({
+    where: { id: user.id },
+    data: {
+      verificationCode,
+      verificationCodeExpires
+    }
+  });
+
+  const emailResult = await sendPasswordResetEmail(user.email, user.fullname, verificationCode);
+  if (!emailResult.success) {
+    return res.status(500).json({ msg: "Error enviando el email de recuperación." });
+  }
+
+  return res.status(200).json({ msg: "Se ha enviado un código de recuperación a tu correo." });
+};
+
+const resetPasswordWithCode = async (req, res) => {
+  const { email, code, newPassword } = req.body;
+
+  if (!email || !code || !newPassword) {
+    return res.status(400).json({ msg: "Todos los campos son requeridos." });
+  }
+
+  const user = await prisma.users.findUnique({ where: { email: email.toLowerCase().trim() } });
+
+  if (!user) {
+    return res.status(404).json({ msg: "Usuario no encontrado." });
+  }
+
+  // Verificar si el código es válido
+  if (!user.verificationCode || user.verificationCode !== code) {
+    return res.status(400).json({ msg: "Código inválido." });
+  }
+
+  if (new Date() > user.verificationCodeExpires) {
+    return res.status(400).json({ msg: "El código ha expirado." });
+  }
+
+  // Validar nueva contraseña
+  const passwordregex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[$@$!%*?&#.$($)$-$_])[A-Za-z\d$@$!%*?&#.$($)$-$_]{6,15}$/;
+  if (!passwordregex.test(newPassword)) {
+    return res.status(400).json({
+      msg: "La contraseña debe tener al menos una letra mayúscula, una minúscula, un número, un carácter especial y entre 6 y 15 caracteres.",
+    });
+  }
+
+  // Hashear nueva contraseña
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  await prisma.users.update({
+    where: { id: user.id },
+    data: {
+      current_password: hashedPassword,
+      verificationCode: null,
+      verificationCodeExpires: null,
+      failedAttempts: 0
+    }
+  });
+
+  await auditService.logEvent({
+    userId: user.id,
+    email: user.email,
+    action: "RESET_PASSWORD",
+    outcome: "SUCCESS",
+    ip: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  return res.status(200).json({ msg: "Contraseña actualizada correctamente." });
+};
+
+
+module.exports = {signUp, verifyEmail, resendVerificationCode, signIn, verify2faLogin, refreshToken, logout, requestPasswordReset, resetPasswordWithCode };

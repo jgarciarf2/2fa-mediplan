@@ -97,10 +97,57 @@ const sendLoginVerificationEmail = async (email, fullname, verificationCode) => 
   }
 };
 
+const sendPasswordResetEmail = async (email, fullname, verificationCode) => {
+  const mailOptions = {
+    from: process.env.SMTP_USER,
+    to: email,
+    subject: 'Recuperación de Contraseña - Código de Verificación',
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif;">
+        <div style="background: linear-gradient(135deg, #667aaa 0%, #763abbff 100%); padding: 30px; text-align: center;">
+          <h1 style="color: white; margin: 0;">Recupera tu contraseña</h1>
+        </div>
+        <div style="padding: 30px; background-color: #f9f9f9;">
+          <h2 style="color: #333;">Hola ${fullname},</h2>
+          <p style="color: #555; line-height: 1.6;">
+            Hemos recibido una solicitud para restablecer la contraseña de tu cuenta.
+            Si no realizaste esta solicitud, puedes ignorar este mensaje.
+          </p>
+          <p style="color: #555; line-height: 1.6;">
+            Si fuiste tú, utiliza el siguiente código de verificación para establecer una nueva contraseña:
+          </p>
+          <div style="text-align: center; margin: 30px 0;">
+            <div style="background-color: #667aaa; color: white; font-size: 32px; 
+                        font-weight: bold; padding: 15px 30px; border-radius: 8px; 
+                        display: inline-block; letter-spacing: 3px;">
+              ${verificationCode}
+            </div>
+          </div>
+          <p style="color: #555; line-height: 1.6;">
+            Este código expira en <strong>15 minutos</strong>. Después de ese tiempo deberás solicitar uno nuevo.
+          </p>
+          <p style="color: #999; font-size: 12px; text-align: center;">
+            Si no solicitaste este cambio, por favor contacta a soporte o ignora este mensaje.
+          </p>
+        </div>
+      </div>
+    `
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Email de recuperación enviado:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('Error enviando email de recuperación:', error);
+    return { success: false, error: error.message };
+  }
+};
 
 module.exports = {
     transporter,
     generateVerificationCode,
     sendVerificationEmail,
-    sendLoginVerificationEmail
+    sendLoginVerificationEmail,
+    sendPasswordResetEmail
 };

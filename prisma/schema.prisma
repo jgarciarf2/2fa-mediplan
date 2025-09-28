@@ -15,17 +15,52 @@ datasource db {
 }
 
 model Users {
-  id                      String    @id @default(auto()) @map("_id") @db.ObjectId
-  email                   String    @unique
+  id                      String          @id @default(auto()) @map("_id") @db.ObjectId
+  email                   String          @unique
   fullname                String
-  status                  String    @default("PENDING") // PENDING, ACTIVE, INACTIVE, LOCKED
+  status                  String          @default("PENDING") // PENDING, ACTIVE, INACTIVE, LOCKED
   verificationCode        String?
   verificationCodeExpires DateTime?
   refreshToken            String?
   current_password        String
-  failedAttempts          Int       @default(0)
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
+  failedAttempts          Int             @default(0)
+  role                    Role            @default(USER)
+  departmentId            String?         @db.ObjectId
+  department              Department?     @relation(fields: [departmentId], references: [id])
+  userSpecialties         UserSpecialty[]
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+}
+
+model Department {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  name        String      @unique
+  users       Users[]
+  specialties Specialty[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Specialty {
+  id              String          @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  departmentId    String          @db.ObjectId
+  department      Department      @relation(fields: [departmentId], references: [id])
+  userSpecialties UserSpecialty[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([name, departmentId])
+}
+
+model UserSpecialty {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String    @db.ObjectId
+  user        Users     @relation(fields: [userId], references: [id])
+  specialtyId String    @db.ObjectId
+  specialty   Specialty @relation(fields: [specialtyId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model AuditLog {
