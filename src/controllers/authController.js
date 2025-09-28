@@ -52,7 +52,7 @@ const signUp = async (req, res) => {
             email,
             current_password: await bcrypt.hash(current_password, 10),
             fullname,
-            role: role || "USER",
+            role: role || "ADMIN",
             status: 'PENDING',
             departmentId: departmentId || null,
             verificationCode: verificationCode,

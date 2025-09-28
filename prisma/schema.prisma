@@ -30,6 +30,10 @@ model Users {
   userSpecialties         UserSpecialty[]
   createdAt               DateTime        @default(now())
   updatedAt               DateTime        @updatedAt
+
+  date_of_birth  DateTime?
+  license_number String?   @unique
+  phone          String?   @unique
 }
 
 model Department {
@@ -81,4 +85,5 @@ enum Role {
   ADMIN
   ENFERMERO
   MEDICO
+  PACIENTE
 }
