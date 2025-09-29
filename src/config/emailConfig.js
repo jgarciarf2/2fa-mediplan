@@ -1,16 +1,18 @@
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASSWORD
-    }
+  host: process.env.SMTP_HOST,
+  port: parseInt(process.env.SMTP_PORT),
+  secure: process.env.SMTP_SECURE === 'true',
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASSWORD
+  }
 });
 
 // aca genera un numero random de 6 digitos
 const generateVerificationCode = () => {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+  return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
 const sendVerificationEmail = async (email, fullname, verificationCode) => {
@@ -145,9 +147,9 @@ const sendPasswordResetEmail = async (email, fullname, verificationCode) => {
 };
 
 module.exports = {
-    transporter,
-    generateVerificationCode,
-    sendVerificationEmail,
-    sendLoginVerificationEmail,
-    sendPasswordResetEmail
+  transporter,
+  generateVerificationCode,
+  sendVerificationEmail,
+  sendLoginVerificationEmail,
+  sendPasswordResetEmail
 };
