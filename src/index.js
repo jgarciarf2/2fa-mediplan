@@ -5,13 +5,13 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 
 require('dotenv').config();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 5173;
 
 const app = express();
 
 app.use(cors({
-    origin: process.env.FRONTEND_PORT, 
-    credentials: true               
+    origin: process.env.FRONTEND_PORT,
+    credentials: true
 }));
 
 // Middleware: POST, PUT, PATCH
