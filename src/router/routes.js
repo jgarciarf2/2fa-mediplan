@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const authRoutes = require('./authRoutes');
+
+console.log('Cargando rutas principales...');
 const departments = require('./departmentRoutes');
 const specialties = require('./specialityRoutes');
 const userSpecialties = require('./userSpecialityRoutes');
@@ -9,6 +11,7 @@ const bulkRoutes = require('./bulkRoutes')
 const { getAuditLogs } = require('../controllers/auditController');
 //const userRoutes = require('./userRoutes');
 
+console.log('Registrando ruta /auth...');
 router.use("/auth", authRoutes);
 router.use("/departments", departments);
 router.use("/specialties", specialties);

@@ -2,7 +2,10 @@ const authController = require('../controllers/authController');
 const express = require('express');
 const router = express.Router();
 
+console.log('Cargando authRoutes...');
+
 //http://localhost:3002/api/v1/auth
+console.log('Registrando rutas POST /sign-up y /sign-in...');
 router.post('/sign-up', authController.signUp);
 router.post('/sign-in', authController.signIn);
 router.post("/resend-verification", authController.resendVerificationCode);
