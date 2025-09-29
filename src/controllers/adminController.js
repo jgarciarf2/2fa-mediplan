@@ -26,6 +26,10 @@ const bulkUploadUsers = async (req, res) => {
           }
         }
 
+        for (let user of users) {
+          user.hashedPassword = await bcrypt.hash(user.current_password, 10);
+        }
+
         // Ejecutar transacción para upsert masivo
         const results = await prisma.$transaction(
           users.map((user) =>
@@ -33,7 +37,7 @@ const bulkUploadUsers = async (req, res) => {
               where: { email: user.email },
               update: {
                 fullname: user.fullname,
-                current_password: user.current_password,
+                current_password: user.hashedPassword,
                 status: user.status || "PENDING",
                 date_of_birth: user.date_of_birth ? new Date(user.date_of_birth) : null,
                 license_number: user.license_number || null,

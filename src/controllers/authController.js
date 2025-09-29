@@ -1,6 +1,6 @@
 const { PrismaClient } = require("../generated/prisma");
 const prisma = new PrismaClient();
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const { generateVerificationCode, sendVerificationEmail, sendLoginVerificationEmail, sendPasswordResetEmail } = require("../config/emailConfig");
