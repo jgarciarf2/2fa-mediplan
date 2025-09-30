@@ -18,6 +18,9 @@ const signUp = async (req, res) => {
     if (email) email = email.toLowerCase().trim();
     console.log(email);
 
+    // Normalizar role
+    if (role) role = role.toUpperCase().trim();
+
     // Validar formato de email
     const emailregex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!emailregex.test(email)) {

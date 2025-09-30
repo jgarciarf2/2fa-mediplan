@@ -1,7 +1,7 @@
 const fs = require("fs");
 const csv = require("csv-parser");
 const bcrypt = require("bcrypt");
-const { PrismaClient } = require("../generated/prisma");
+const { PrismaClient, Role } = require("../generated/prisma");
 const prisma = new PrismaClient();
 
 const bulkUploadUsers = async (req, res) => {
@@ -29,7 +29,31 @@ const bulkUploadUsers = async (req, res) => {
         for (let user of users) {
           user.hashedPassword = await bcrypt.hash(user.current_password, 10);
 
+          user.email = user.email?.trim().toLowerCase();
+
+          user.fullname = user.fullname?.trim().toUpperCase();
+
+          user.department = user.department?.trim().toUpperCase();
+
           user.specialty = user.specialization || null;
+
+          user.specialty = user.specialty?.trim().toUpperCase();
+
+          if(!user.role) {
+            user.role = Role.USER;
+          }
+
+          if (user.role == "ADMINISTRADOR" || user.role == "ADMINNISTRADORA") {
+            user.role = Role.ADMIN;
+          }
+
+          if (user.role == "ENFERMERA") {
+            user.role = Role.ENFERMERO;
+          }
+
+          if (user.role == "MEDICA") {
+            user.role = Role.MEDICO;
+          }
 
           // Department
           if (user.department) {
