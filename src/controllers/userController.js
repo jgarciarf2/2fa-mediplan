@@ -11,13 +11,13 @@ const getAllUsers = async (req, res) => {
     let where = {};
     if (role) where.role = role;
     if (departmentId) where.departmentId = departmentId;
-    if (specialtyId) where.userSpecialties = { some: { specialtyId } };
+    if (specialtyId) where.specialtyId = specialtyId;
 
     const users = await prisma.users.findMany({
       where,
       include: {
         department: true,
-        userSpecialties: { include: { specialty: true } },
+        specialty: true,
       },
     });
 

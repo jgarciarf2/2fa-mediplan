@@ -11,7 +11,6 @@ const bulkUploadUsers = async (req, res) => {
 
   const users = [];
 
-  // Leer CSV
   fs.createReadStream(req.file.path)
     .pipe(csv())
     .on("data", (row) => {
@@ -26,11 +25,43 @@ const bulkUploadUsers = async (req, res) => {
           }
         }
 
+        // Resolver relaciones y encriptar password
         for (let user of users) {
           user.hashedPassword = await bcrypt.hash(user.current_password, 10);
+
+          user.specialty = user.specialization || null;
+
+          // Department
+          if (user.department) {
+            const dept = await prisma.department.upsert({
+              where: { name: user.department },
+              update: {}, // no actualizo nada si ya existe
+              create: { name: user.department },
+            });
+            user.departmentId = dept.id;
+          }
+
+          // Specialization
+          if (user.specialty) {
+            if (!user.departmentId) {
+              throw new Error(
+                `No se puede crear la especialización "${user.specialty}" sin un departamento válido`
+              );
+            }
+
+            const spec = await prisma.specialty.upsert({
+              where: { name_departmentId: { name: user.specialty, departmentId: user.departmentId } },
+              update: {},
+              create: {
+                name: user.specialty,
+                departmentId: user.departmentId,
+              },
+            });
+            user.specialtyId = spec.id;
+          }
         }
 
-        // Ejecutar transacción para upsert masivo
+        // Transacción con upsert
         const results = await prisma.$transaction(
           users.map((user) =>
             prisma.users.upsert({
@@ -44,17 +75,19 @@ const bulkUploadUsers = async (req, res) => {
                 phone: user.phone || null,
                 role: user.role || "USER",
                 departmentId: user.departmentId || null,
+                specialtyId: user.specialtyId || null,
               },
               create: {
                 email: user.email,
                 fullname: user.fullname,
-                current_password: user.current_password,
+                current_password: user.hashedPassword,
                 status: user.status || "PENDING",
                 date_of_birth: user.date_of_birth ? new Date(user.date_of_birth) : null,
                 license_number: user.license_number || null,
                 phone: user.phone || null,
                 role: user.role || "USER",
                 departmentId: user.departmentId || null,
+                specialtyId: user.specialtyId || null,
               },
             })
           )
@@ -67,7 +100,6 @@ const bulkUploadUsers = async (req, res) => {
       } catch (err) {
         return res.status(400).json({ message: "Error en carga masiva", error: err.message });
       } finally {
-        // Opcional: borrar archivo temporal después de procesarlo
         fs.unlink(req.file.path, () => {});
       }
     })
@@ -75,6 +107,7 @@ const bulkUploadUsers = async (req, res) => {
       return res.status(500).json({ message: "Error leyendo CSV", error: err.message });
     });
 };
+
 
 const bulkDeleteUsers = async (req, res) => {
   if (!req.file) {
