@@ -5,9 +5,6 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const { generateVerificationCode, sendVerificationEmail, sendLoginVerificationEmail, sendPasswordResetEmail } = require("../config/emailConfig");
 const auditService = require("../services/auditService");
-const fs = require("fs");
-const csv = require("csv-parser");
-
 
 require('dotenv').config();
 
@@ -558,33 +555,4 @@ const resetPasswordWithCode = async (req, res) => {
   return res.status(200).json({ msg: "Contraseña actualizada correctamente." });
 };
 
-
-const bulkUpload = async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No se envió ningún archivo" });
-    }
-
-    const results = [];
-
-    fs.createReadStream(req.file.path)
-      .pipe(csv())
-      .on("data", (row) => {
-        results.push(row);  // cada fila del CSV como objeto
-      })
-      .on("end", () => {
-        console.log("Registros leídos:", results);
-
-        res.json({
-          message: "Archivo procesado con éxito",
-          registros: results,
-        });
-      });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error al procesar archivo" });
-  }
-};
-
-
-module.exports = {signUp, verifyEmail, resendVerificationCode, signIn, verify2faLogin, refreshToken, logout, requestPasswordReset, resetPasswordWithCode, bulkUpload };
+module.exports = {signUp, verifyEmail, resendVerificationCode, signIn, verify2faLogin, refreshToken, logout, requestPasswordReset, resetPasswordWithCode };
