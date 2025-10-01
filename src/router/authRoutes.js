@@ -1,12 +1,14 @@
 const authController = require('../controllers/authController');
 const express = require('express');
 const router = express.Router();
+const authenticateJWT = require('../middlewares/authMiddleware');
+const authorize = require('../middlewares/authorize');
 
 console.log('Cargando authRoutes...');
 
 //http://localhost:3002/api/v1/auth
 console.log('Registrando rutas POST /sign-up y /sign-in...');
-router.post('/sign-up', authController.signUp);
+router.post('/sign-up', authenticateJWT, authorize(["ADMIN"]), authController.signUp);
 router.post('/sign-in', authController.signIn);
 router.post("/resend-verification", authController.resendVerificationCode);
 router.post("/verify-email", authController.verifyEmail);
