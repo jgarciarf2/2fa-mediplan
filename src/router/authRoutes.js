@@ -20,5 +20,5 @@ router.post("/refresh-token", authController.refreshToken);
 router.post("/logout", authController.logout);
 router.post("/password-reset", authController.requestPasswordReset);
 router.post("/verify-password", authController.resetPasswordWithCode);
-router.post("/bulk-upload",authenticateJWT, upload.single('file'), authController.bulkUpload);
+router.post("/bulk-upload",authenticateJWT,authorize(["ADMIN"]), upload.single('file'), authController.bulkUpload);
 module.exports = router;
