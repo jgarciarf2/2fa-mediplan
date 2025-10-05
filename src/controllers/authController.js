@@ -85,7 +85,8 @@ const signUp = async (req, res) => {
     }
 
     // Crear nuevo usuario con estado PENDING y hashear la contraseña
-    const createUser = await prisma.users.create({
+    let createUser;
+     createUser = await prisma.users.create({
         data: {
             email,
             current_password: await bcrypt.hash(current_password, 10),
@@ -104,7 +105,6 @@ const signUp = async (req, res) => {
     });
 
     const emailResult = await sendVerificationEmail(email, fullname, verificationCode);
-
     if (!emailResult.success) {
         //si hay un error borramos el usuario creado
         await prisma.users.delete({ where: { id: createUser.id } });
@@ -112,7 +112,8 @@ const signUp = async (req, res) => {
             msg: "Error enviando el email de verificación. Intente nuevamente" });
     }
 
-    return res.status(201).json(createUser);
+    console.log('Usuario creado:', createUser);
+  return res.status(201).json(createUser);
 };
 
 const verifyEmail = async (req, res) => {

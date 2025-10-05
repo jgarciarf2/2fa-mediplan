@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">17.39% </span>
+                <span class="strong">18.69% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>104/598</span>
+                <span class='fraction'>112/599</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">17.39% </span>
+                <span class="strong">18.69% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>104/598</span>
+                <span class='fraction'>112/599</span>
             </div>
         
             
@@ -660,7 +660,8 @@
 <a name='L595'></a><a href='#L595'>595</a>
 <a name='L596'></a><a href='#L596'>596</a>
 <a name='L597'></a><a href='#L597'>597</a>
-<a name='L598'></a><a href='#L598'>598</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L598'></a><a href='#L598'>598</a>
+<a name='L599'></a><a href='#L599'>599</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -764,18 +765,19 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1300,7 +1302,7 @@ const signUp = async (req, res) =&gt; {
     console.log(email);
 &nbsp;
     // Normalizar role
-    if (role) role = role.toUpperCase().trim();
+    if (role) <span class="branch-0 cbranch-no" title="branch not covered" >role = role.toUpperCase().trim();</span>
 &nbsp;
     // Validar formato de email
     const emailregex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -1344,12 +1346,13 @@ const signUp = async (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >    }</span>
 &nbsp;
     // Crear nuevo usuario con estado PENDING y hashear la contraseña
-    const createUser = await prisma.users.create({
+    let createUser;
+     createUser = await prisma.users.create({
         data: {
             email,
             current_password: await bcrypt.hash(current_password, 10),
             fullname,
-            role: role<span class="branch-0 cbranch-no" title="branch not covered" > || "ADMIN",</span>
+            role: role || "ADMIN",
             status: 'PENDING',
             departmentId: departmentId || null,
             specialtyId: specialtyId || null,
@@ -1360,19 +1363,19 @@ const signUp = async (req, res) =&gt; {
             verificationCode: verificationCode,
             verificationCodeExpires: verificationExpires
         }
-    })<span class="branch-0 cbranch-no" title="branch not covered" >;</span>
-<span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >    const emailResult = await sendVerificationEmail(email, fullname, verificationCode);</span>
-<span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >    if (!emailResult.success) {</span>
+    });
+&nbsp;
+    const emailResult = await sendVerificationEmail(email, fullname, verificationCode);
+    if (!emailResult.success) <span class="branch-0 cbranch-no" title="branch not covered" >{</span>
 <span class="cstat-no" title="statement not covered" >        //si hay un error borramos el usuario creado</span>
 <span class="cstat-no" title="statement not covered" >        await prisma.users.delete({ where: { id: createUser.id } });</span>
 <span class="cstat-no" title="statement not covered" >        return res.status(500).json({ </span>
 <span class="cstat-no" title="statement not covered" >            msg: "Error enviando el email de verificación. Intente nuevamente" });</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
-<span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >    return res.status(201).json(createUser);</span>
-<span class="cstat-no" title="statement not covered" >};</span>
+&nbsp;
+    console.log('Usuario creado:', createUser);
+  return res.status(201).json(createUser);
+};
 &nbsp;
 const verifyEmail = <span class="fstat-no" title="function not covered" >async (req, res) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >  try {</span>
@@ -1861,7 +1864,7 @@ module.exports = {signUp, verifyEmail, resendVerificationCode, signIn, verify2fa
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-10-05T13:13:44.114Z
+                at 2025-10-05T18:29:59.128Z
             </div>
         <script src="../../prettify.js"></script>
         <script>
