@@ -37,7 +37,13 @@ app.use((req, res) => {
     res.status(404).json({ error: 'Ruta no encontrada' });
 });
 
-app.listen(port, () => {
-    console.log(`Server started on port ${port}`);
-    database();
-});
+module.exports = app; // Exporta la app para usarla en los tests
+
+// Iniciar el servidor 
+
+if (require.main === module) {
+    app.listen(port, () => {
+        console.log(`Server started on port ${port}`);
+        database();
+    });
+}
