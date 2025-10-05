@@ -5,15 +5,34 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const { generateVerificationCode, sendVerificationEmail, sendLoginVerificationEmail, sendPasswordResetEmail } = require("../config/emailConfig");
 const auditService = require("../services/auditService");
-const fs = require("fs");
-const csv = require("csv-parser");
-
 
 require('dotenv').config();
 
+// Función para calcular la edad a partir de la fecha de nacimiento
+const calculateAge = (date) => {
+  const today = new Date();
+  const birthDate = new Date(date);
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
+};
+
+// Validación de edad
+const validateAge = (dob) => {
+  const age = calculateAge(dob);
+  if (isNaN(age) || age < 0 || age > 100) {
+    throw new Error(`Edad inválida (${age}). Debe estar entre 0 y 100 años.`);
+  }
+  return age;
+};
+
 const signUp = async (req, res) => {
-    let { email, current_password, fullname, role, departmentId } = req.body;
-    if (!email || !current_password || !fullname) {
+    let { email, current_password, fullname, role, departmentId, specialtyId, date_of_birth,
+          phone, license_number } = req.body;
+    if (!email || !current_password || !fullname || !date_of_birth) {
         return res.status(400).json({ msg: "Faltan datos obligatorios." });
     }
 
@@ -52,6 +71,19 @@ const signUp = async (req, res) => {
     const verificationExpires = new Date();
     verificationExpires.setMinutes(verificationExpires.getMinutes() + 15);
 
+    // Validar y convertir fecha de nacimiento
+    let dob = null;
+    let age = null;
+    try {
+      dob = new Date(date_of_birth);
+      if (isNaN(dob.getTime())) {
+        return res.status(400).json({ msg: "Formato de fecha de nacimiento inválido. Use YYYY-MM-DD" });
+      }
+      age = validateAge(dob);
+    } catch (err) {
+      return res.status(400).json({ msg: err.message });
+    }
+
     // Crear nuevo usuario con estado PENDING y hashear la contraseña
     const createUser = await prisma.users.create({
         data: {
@@ -61,6 +93,11 @@ const signUp = async (req, res) => {
             role: role || "ADMIN",
             status: 'PENDING',
             departmentId: departmentId || null,
+            specialtyId: specialtyId || null,
+            date_of_birth: dob,
+            age,
+            phone: phone || null,
+            license_number: license_number || null,
             verificationCode: verificationCode,
             verificationCodeExpires: verificationExpires
         }
@@ -558,33 +595,4 @@ const resetPasswordWithCode = async (req, res) => {
   return res.status(200).json({ msg: "Contraseña actualizada correctamente." });
 };
 
-
-const bulkUpload = async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No se envió ningún archivo" });
-    }
-
-    const results = [];
-
-    fs.createReadStream(req.file.path)
-      .pipe(csv())
-      .on("data", (row) => {
-        results.push(row);  // cada fila del CSV como objeto
-      })
-      .on("end", () => {
-        console.log("Registros leídos:", results);
-
-        res.json({
-          message: "Archivo procesado con éxito",
-          registros: results,
-        });
-      });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error al procesar archivo" });
-  }
-};
-
-
-module.exports = {signUp, verifyEmail, resendVerificationCode, signIn, verify2faLogin, refreshToken, logout, requestPasswordReset, resetPasswordWithCode, bulkUpload };
+module.exports = {signUp, verifyEmail, resendVerificationCode, signIn, verify2faLogin, refreshToken, logout, requestPasswordReset, resetPasswordWithCode };

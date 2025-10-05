@@ -18,23 +18,23 @@ model Users {
   id                      String      @id @default(auto()) @map("_id") @db.ObjectId
   email                   String      @unique
   fullname                String
-  status                  String      @default("PENDING") // PENDING, ACTIVE, INACTIVE, LOCKED
+  status                  Status      @default(PENDING)
   verificationCode        String?
   verificationCodeExpires DateTime?
   refreshToken            String?
   current_password        String
   failedAttempts          Int         @default(0)
   role                    Role        @default(USER)
+  date_of_birth           DateTime?
+  age                     Int?
+  license_number          String?     @unique
+  phone                   String?     @unique
   departmentId            String?     @db.ObjectId
-  department              Department? @relation(fields: [departmentId], references: [id])
+  department              Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   specialtyId             String?     @db.ObjectId
-  specialty               Specialty?  @relation(fields: [specialtyId], references: [id])
+  specialty               Specialty?  @relation(fields: [specialtyId], references: [id], onDelete: SetNull)
   createdAt               DateTime    @default(now())
   updatedAt               DateTime    @updatedAt
-
-  date_of_birth  DateTime?
-  license_number String?   @unique
-  phone          String?   @unique
 }
 
 model Department {
@@ -48,9 +48,9 @@ model Department {
 
 model Specialty {
   id           String     @id @default(auto()) @map("_id") @db.ObjectId
-  name         String     @unique
+  name         String
   departmentId String     @db.ObjectId
-  department   Department @relation(fields: [departmentId], references: [id])
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
   users        Users[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
@@ -71,10 +71,25 @@ model AuditLog {
   updatedAt DateTime @updatedAt
 }
 
+model FileUploadLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  filename  String   @unique
+  userId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 enum Role {
   USER
   ADMIN
   ENFERMERO
   MEDICO
   PACIENTE
+}
+
+enum Status {
+  PENDING
+  ACTIVE
+  INACTIVE
+  LOCKED
 }

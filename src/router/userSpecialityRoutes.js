@@ -12,6 +12,6 @@ router.get("/user/:userId", authenticateJWT, authorize(["ADMIN", "MEDICO", "ENFE
 router.get("/specialty/:specialtyId", authenticateJWT, authorize(["ADMIN", "MEDICO"]), userSpecialtiesController.getSpecialtyUsers);
 // Rutas protegidas (solo ADMIN)
 router.post("/", authenticateJWT, authorize(["ADMIN"]), userSpecialtiesController.assignSpecialtyToUser);
-router.delete("/:id", authenticateJWT, authorize(["ADMIN"]), userSpecialtiesController.removeUserSpecialty);
+router.delete("/:userId", authenticateJWT, authorize(["ADMIN"]), userSpecialtiesController.removeUserSpecialty);
 
 module.exports = router;
