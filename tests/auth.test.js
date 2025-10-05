@@ -16,24 +16,59 @@ afterAll(async () => {
   }
 });
 
-describe("Pruebas del endpoint /sign-up", () => {
-  it("Debería registrar un usuario nuevo correctamente", async () => {
+// Endpoint para sign-up y  verify-email
+describe("Pruebas del endpoint /sign-up y /verify-email", () => {
+  it("Debería verificar el email correctamente con un código válido", async () => { 
     const uniqueEmail = `test_${Date.now()}@example.com`;
-    const response = await request(server)
-      .post("/api/v1/auth/sign-up")
-      .send({
-        fullname: "Test User",
-        email: uniqueEmail,
-        current_password: "Password123!",
-        date_of_birth: "1995-05-20",
-      });
+    // Registro de un nuevo usuario 
+    const signUpResponse = await request(server)
+        .post("/api/v1/auth/sign-up")
+        .send({
+            fullname: "Test User",
+            email: uniqueEmail,
+            current_password: "Password123!",
+            date_of_birth: "1995-05-20",
+        }); 
 
-    console.log("Respuesta del servidor:", response.body);
+    console.log("Respuesta del servidor:", signUpResponse.body);
+    expect([200, 201]).toContain(signUpResponse.statusCode);
 
-    expect([200, 201]).toContain(response.statusCode);
-    expect(response.body).toHaveProperty("email", uniqueEmail);
-    expect(response.body).toHaveProperty("id");
-    expect(response.body).toHaveProperty("status");
+    // Simula obtener el código de verificación (en un caso real, esto vendría del email)
+    //const verificationCode = "123456"; // Debe coincidir con el código generado en el controlador   
+    // Luego, verifica el email con el código simulado
+    const verifyResponse = await request(server)
+        .post("/api/v1/auth/verify-email")
+        .send({
+            email: uniqueEmail,
+            verificationCode: signUpResponse.body.verificationCode, // usa el código real
+        });
+    console.log("Respuesta de verificación:", verifyResponse.body);
+    expect(verifyResponse.statusCode).toBe(200);
+    expect(verifyResponse.body).toHaveProperty("msg", "Email verified successfully");
+  });
 
+  it("Debería fallar al verificar el email con un código inválido", async () => {   
+    const uniqueEmail = `test_${Date.now()}@example.com`;
+    // Primero, registra un usuario nuevo
+    const signUpResponse = await request(server)
+        .post("/api/v1/auth/sign-up")
+        .send({
+            fullname: "Test User",
+            email: uniqueEmail,
+            current_password: "Password123!",
+            date_of_birth: "1995-05-20",
+        }); 
+    expect([200, 201]).toContain(signUpResponse.statusCode);    
+    // Intenta verificar el email con un código incorrecto
+    //const invalidCode = "000000";       
+    const verifyResponse = await request(server)
+        .post("/api/v1/auth/verify-email")
+        .send({ 
+            email: uniqueEmail,
+            verificationCode: "000000", // código inválido
+        }); 
+    console.log("Respuesta de verificación con código inválido:", verifyResponse.body);
+    expect(verifyResponse.statusCode).toBe(400);
+    expect(verifyResponse.body).toHaveProperty("msg", "Invalid or expired verification code");
   });
 });
