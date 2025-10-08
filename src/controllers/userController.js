@@ -49,6 +49,130 @@ const getAllUsers = async (req, res) => {
   }
 };
 
+// Listar usuarios por rol
+const getUsersByRole = async (req, res) => {
+  try {
+    const { role } = req.params;
+
+    const users = await prisma.users.findMany({
+      where: { role },
+      include: {
+        department: true,
+        specialty: true,
+      },
+    });
+
+    await logEvent({
+      userId: req.user.id,
+      email: req.user.email,
+      role: req.user.role,
+      action: "GET_USERS_BY_ROLE",
+      outcome: "SUCCESS",
+      reason: `Listó usuarios con rol ${role}`,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    res.status(200).json(users);
+  } catch (error) {
+    console.error("Error fetching users by role:", error);
+    res.status(500).json({ msg: "Error interno del servidor" });
+  }
+};
+
+// Listar usuarios por departamento
+const getUsersByDepartment = async (req, res) => {
+  try {
+    const { departmentId } = req.params;
+
+    const users = await prisma.users.findMany({
+      where: { departmentId: parseInt(departmentId) },
+      include: {
+        department: true,
+        specialty: true,
+      },
+    });
+
+    await logEvent({
+      userId: req.user.id,
+      email: req.user.email,
+      role: req.user.role,
+      action: "GET_USERS_BY_DEPARTMENT",
+      outcome: "SUCCESS",
+      reason: `Listó usuarios del departamento ${departmentId}`,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    res.status(200).json(users);
+  } catch (error) {
+    console.error("Error fetching users by department:", error);
+    res.status(500).json({ msg: "Error interno del servidor" });
+  }
+};
+
+// Listar usuarios por especialidad
+const getUsersBySpecialty = async (req, res) => {
+  try {
+    const { specialtyId } = req.params;
+
+    const users = await prisma.users.findMany({
+      where: { specialtyId: parseInt(specialtyId) },
+      include: {
+        department: true,
+        specialty: true,
+      },
+    });
+
+    await logEvent({
+      userId: req.user.id,
+      email: req.user.email,
+      role: req.user.role,
+      action: "GET_USERS_BY_SPECIALTY",
+      outcome: "SUCCESS",
+      reason: `Listó usuarios con especialidad ${specialtyId}`,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    res.status(200).json(users);
+  } catch (error) {
+    console.error("Error fetching users by specialty:", error);
+    res.status(500).json({ msg: "Error interno del servidor" });
+  }
+};
+
+// Listar usuarios por estado
+const getUsersByStatus = async (req, res) => {
+  try {
+    const { status } = req.params;
+
+    const users = await prisma.users.findMany({
+      where: { status },
+      include: {
+        department: true,
+        specialty: true,
+      },
+    });
+
+    await logEvent({
+      userId: req.user.id,
+      email: req.user.email,
+      role: req.user.role,
+      action: "GET_USERS_BY_STATUS",
+      outcome: "SUCCESS",
+      reason: `Listó usuarios con estado ${status}`,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    res.status(200).json(users);
+  } catch (error) {
+    console.error("Error fetching users by status:", error);
+    res.status(500).json({ msg: "Error interno del servidor" });
+  }
+};
+
 // Obtener usuario por ID
 const getUserById = async (req, res) => {
   const { id } = req.params;
@@ -324,4 +448,4 @@ const calculateAge = (date) => {
   return age;
 };
 
-module.exports = { getAllUsers, getUserById, updateUser, updateUserState, getUserPage, deleteUser };
+module.exports = { getAllUsers, getUserById, updateUser, updateUserState, getUserPage, deleteUser, getUsersByRole, getUsersByDepartment, getUsersBySpecialty, getUsersByStatus };
