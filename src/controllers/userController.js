@@ -2,6 +2,8 @@ const { PrismaClient } = require("../generated/prisma");
 const prisma = new PrismaClient();
 const { logEvent } = require("../services/auditService");
 
+const isValidObjectId = (id) => /^[a-f\d]{24}$/i.test(id);
+
 // Listar todos los usuarios
 const getAllUsers = async (req, res) => {
   try {
@@ -56,11 +58,12 @@ const getUsersByRole = async (req, res) => {
 
     const users = await prisma.users.findMany({
       where: { role },
-      include: {
-        department: true,
-        specialty: true,
-      },
+      include: { department: true, specialty: true },
     });
+
+    if (users.length === 0) {
+      return res.status(404).json({ msg: `No se encontraron usuarios con el rol ${role}` });
+    }
 
     await logEvent({
       userId: req.user.id,
@@ -76,7 +79,7 @@ const getUsersByRole = async (req, res) => {
     res.status(200).json(users);
   } catch (error) {
     console.error("Error fetching users by role:", error);
-    res.status(500).json({ msg: "Error interno del servidor" });
+    res.status(500).json({ msg: "Error interno del servidor", error: error.message });
   }
 };
 
@@ -85,13 +88,26 @@ const getUsersByDepartment = async (req, res) => {
   try {
     const { departmentId } = req.params;
 
-    const users = await prisma.users.findMany({
-      where: { departmentId: parseInt(departmentId) },
-      include: {
-        department: true,
-        specialty: true,
-      },
+    if (!isValidObjectId(departmentId)) {
+      return res.status(400).json({ msg: "Formato de ID de departamento inválido" });
+    }
+
+    const department = await prisma.department.findUnique({
+      where: { id: departmentId },
     });
+
+    if (!department) {
+      return res.status(404).json({ msg: `No existe el departamento con id ${departmentId}` });
+    }
+
+    const users = await prisma.users.findMany({
+      where: { departmentId },
+      include: { department: true, specialty: true },
+    });
+
+    if (users.length === 0) {
+      return res.status(404).json({ msg: `No hay usuarios asociados al departamento ${department.name}` });
+    }
 
     await logEvent({
       userId: req.user.id,
@@ -99,7 +115,7 @@ const getUsersByDepartment = async (req, res) => {
       role: req.user.role,
       action: "GET_USERS_BY_DEPARTMENT",
       outcome: "SUCCESS",
-      reason: `Listó usuarios del departamento ${departmentId}`,
+      reason: `Listó usuarios del departamento ${department.name}`,
       ip: req.ip,
       userAgent: req.headers["user-agent"],
     });
@@ -107,7 +123,7 @@ const getUsersByDepartment = async (req, res) => {
     res.status(200).json(users);
   } catch (error) {
     console.error("Error fetching users by department:", error);
-    res.status(500).json({ msg: "Error interno del servidor" });
+    res.status(500).json({ msg: "Error interno del servidor", error: error.message });
   }
 };
 
@@ -116,13 +132,26 @@ const getUsersBySpecialty = async (req, res) => {
   try {
     const { specialtyId } = req.params;
 
-    const users = await prisma.users.findMany({
-      where: { specialtyId: parseInt(specialtyId) },
-      include: {
-        department: true,
-        specialty: true,
-      },
+    if (!isValidObjectId(specialtyId)) {
+      return res.status(400).json({ msg: "Formato de ID de especialidad inválido" });
+    }
+
+    const specialty = await prisma.specialty.findUnique({
+      where: { id: specialtyId },
     });
+
+    if (!specialty) {
+      return res.status(404).json({ msg: `No existe la especialidad con id ${specialtyId}` });
+    }
+
+    const users = await prisma.users.findMany({
+      where: { specialtyId },
+      include: { department: true, specialty: true },
+    });
+
+    if (users.length === 0) {
+      return res.status(404).json({ msg: `No hay usuarios asociados a la especialidad ${specialty.name}` });
+    }
 
     await logEvent({
       userId: req.user.id,
@@ -130,7 +159,7 @@ const getUsersBySpecialty = async (req, res) => {
       role: req.user.role,
       action: "GET_USERS_BY_SPECIALTY",
       outcome: "SUCCESS",
-      reason: `Listó usuarios con especialidad ${specialtyId}`,
+      reason: `Listó usuarios con especialidad ${specialty.name}`,
       ip: req.ip,
       userAgent: req.headers["user-agent"],
     });
@@ -138,7 +167,7 @@ const getUsersBySpecialty = async (req, res) => {
     res.status(200).json(users);
   } catch (error) {
     console.error("Error fetching users by specialty:", error);
-    res.status(500).json({ msg: "Error interno del servidor" });
+    res.status(500).json({ msg: "Error interno del servidor", error: error.message });
   }
 };
 
@@ -146,14 +175,20 @@ const getUsersBySpecialty = async (req, res) => {
 const getUsersByStatus = async (req, res) => {
   try {
     const { status } = req.params;
+    const normalizedStatus = status.toUpperCase();
+
+    if (!["ACTIVE", "INACTIVE", "PENDING", "LOCKED"].includes(normalizedStatus)) {
+      return res.status(400).json({ msg: "Estado inválido (use ACTIVE, INACTIVE, PENDING o LOCKED)" });
+    }
 
     const users = await prisma.users.findMany({
-      where: { status },
-      include: {
-        department: true,
-        specialty: true,
-      },
+      where: { status: normalizedStatus },
+      include: { department: true, specialty: true },
     });
+
+    if (users.length === 0) {
+      return res.status(404).json({ msg: `No se encontraron usuarios con estado ${normalizedStatus}` });
+    }
 
     await logEvent({
       userId: req.user.id,
@@ -161,7 +196,7 @@ const getUsersByStatus = async (req, res) => {
       role: req.user.role,
       action: "GET_USERS_BY_STATUS",
       outcome: "SUCCESS",
-      reason: `Listó usuarios con estado ${status}`,
+      reason: `Listó usuarios con estado ${normalizedStatus}`,
       ip: req.ip,
       userAgent: req.headers["user-agent"],
     });
@@ -169,7 +204,7 @@ const getUsersByStatus = async (req, res) => {
     res.status(200).json(users);
   } catch (error) {
     console.error("Error fetching users by status:", error);
-    res.status(500).json({ msg: "Error interno del servidor" });
+    res.status(500).json({ msg: "Error interno del servidor", error: error.message });
   }
 };
 
