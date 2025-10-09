@@ -11,6 +11,15 @@ const bulkRoutes = require('./bulkRoutes')
 const { getAuditLogs } = require('../controllers/auditController');
 //const userRoutes = require('./userRoutes');
 
+// ✅ Endpoint para verificar el estado del servidor
+router.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    message: "Servidor funcionando correctamente 🚀",
+    timestamp: new Date().toISOString()
+  });
+});
+
 console.log('Registrando ruta /auth...');
 router.use("/auth", authRoutes);
 router.use("/departments", departments);
