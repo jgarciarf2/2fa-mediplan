@@ -30,6 +30,10 @@ app.use((req, res, next) => {
     next();
 });
 
+app.get('/', (req, res) => {
+  res.json({ mensaje: 'Servidor activo 🚀' });
+});
+
 app.use('/api/v1', routes);
 
 // Middleware para manejar rutas no encontradas
