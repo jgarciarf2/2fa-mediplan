@@ -38,7 +38,8 @@ app.use((req, res) => {
     res.status(404).json({ error: 'Ruta no encontrada' });
 });
 
-module.exports = serverless(app); // Exporta la app para usarla en los tests
+module.exports = app; // exporta la app
+module.exports.handler = serverless(app); // handler que usa Vercel
 
 // Iniciar el servidor 
 database(); // ✅ Ejecuta la conexión al iniciar
