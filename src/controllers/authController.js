@@ -229,6 +229,7 @@ const resendVerificationCode = async (req, res) => {
 };
 
 const signIn = async (req, res) => {
+    console.log('Iniciando signIn...');
     let { email, current_password } = req.body;
 
     // Validar campos obligatorios

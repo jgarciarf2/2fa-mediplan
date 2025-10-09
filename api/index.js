@@ -6,7 +6,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 
 require('dotenv').config();
-const port = process.env.PORT || 5173;
+const port =  process.env.PORT || 3002;
 
 console.log('FRONTEND_PORT:', process.env.FRONTEND_PORT);
 console.log('PORT:', port);
@@ -45,5 +45,12 @@ app.use((req, res) => {
 module.exports = app; // exporta la app
 module.exports.handler = serverless(app); // handler que usa Vercel
 
+if (require.main === module) {
+  const port = process.env.PORT || 3002;
+  app.listen(port, () => {
+    console.log(`Servidor local corriendo en http://localhost:${port}`);
+  });
+}
+
 // Iniciar el servidor 
-database(); // ✅ Ejecuta la conexión al iniciar
+database();

@@ -6,14 +6,14 @@ const authorize = require('../middlewares/authorize');
 const multer = require('multer');
 const os = require('os');
 
+// Configuración de multer para manejar archivos en memoria
 const upload = multer({
-  dest: os.tmpdir(), // ✅ Carpeta temporal válida en Vercel
+  dest: os.tmpdir(),
 });
 console.log('Cargando authRoutes...');
 
 //http://localhost:3002/api/v1/auth
-console.log('Registrando rutas POST /sign-up y /sign-in...');
-//router.post('/sign-up', authenticateJWT, authorize(["ADMIN"]), authController.signUp);
+router.post('/sign-up', authenticateJWT, authorize(["ADMIN"]), authController.signUp);
 router.post('/sign-up', authController.signUp);
 router.post('/sign-in', authController.signIn);
 router.post("/resend-verification", authController.resendVerificationCode);
