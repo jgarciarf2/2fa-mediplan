@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 
 // Ruta absoluta al archivo de logs
-const logDir = path.resolve("logs");
+const logDir = path.resolve("/tmp/logs");
 
 // Si la carpeta no existe, la crea automáticamente
 if (!fs.existsSync(logDir)) {
