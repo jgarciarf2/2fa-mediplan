@@ -4,8 +4,11 @@ const router = express.Router();
 const authenticateJWT = require('../middlewares/authMiddleware');
 const authorize = require('../middlewares/authorize');
 const multer = require('multer');
-const upload = multer({ dest: 'uploads/' }); // carpeta temporal donde se guardan los archivos
+const os = require('os');
 
+const upload = multer({
+  dest: os.tmpdir(), // ✅ Carpeta temporal válida en Vercel
+});
 console.log('Cargando authRoutes...');
 
 //http://localhost:3002/api/v1/auth
