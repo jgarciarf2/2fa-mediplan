@@ -1,6 +1,7 @@
 const express = require('express');
-const database = require('./config/database');
-const routes = require('./router/routes');
+const serverless = require('serverless-http');
+const database = require('../src/config/database');
+const routes = require('../src/router/routes');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
@@ -37,13 +38,7 @@ app.use((req, res) => {
     res.status(404).json({ error: 'Ruta no encontrada' });
 });
 
-module.exports = app; // Exporta la app para usarla en los tests
+module.exports = serverless(app); // Exporta la app para usarla en los tests
 
 // Iniciar el servidor 
-
-if (require.main === module) {
-    app.listen(port, () => {
-        console.log(`Server started on port ${port}`);
-        database();
-    });
-}
+database(); // ✅ Ejecuta la conexión al iniciar
