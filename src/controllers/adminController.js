@@ -85,19 +85,227 @@ const upload = multer({
   }),
 });
 
-const bulkUploadUsers = async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: "Archivo CSV requerido." });
-  }
-
+async function checkExistingFile(req, res) {
   const existingFile = await prisma.fileUploadLog.findUnique({
-    where: { filename: req.file.originalname }
+    where: { filename: req.file.originalname },
   });
 
   if (existingFile) {
-    fs.unlink(req.file.path, () => {}); // borrar el archivo subido
-    return res.status(400).json({ message: `El archivo ${req.file.originalname} ya fue cargado anteriormente.` });
+    fs.unlink(req.file.path, () => {});
+    res.status(400).json({
+      message: `El archivo ${req.file.originalname} ya fue cargado anteriormente.`,
+    });
+    return true;
   }
+  return false;
+}
+
+function parseCsv(filePath) {
+  return new Promise((resolve, reject) => {
+    const users = [];
+    fs.createReadStream(filePath, { encoding: "utf8" })
+      .pipe(csv({
+        separator: ",",
+        mapHeaders: ({ header }) => header.replace(/^\uFEFF/, "").trim(),
+      }))
+      .on("data", (row) => users.push(row))
+      .on("end", () => resolve(users))
+      .on("error", (err) => reject(err));
+  });
+}
+
+async function preprocessUsers(usersToInsert) {
+  const errorRecords = [];
+  const validUsers = [];
+
+  for (let i = 0; i < usersToInsert.length; i++) {
+    const user = usersToInsert[i];
+
+    try {
+      sanitizeUserFields(user);
+      validateRequiredFields(user);
+      validateUserFormats(user);
+
+      const dob = new Date(user.date_of_birth);
+      user.age = validateAge(dob);
+      user.date_of_birth = dob;
+      user.role = roleMap[user.role?.toUpperCase()] || Role.USER;
+
+      if (user.status === "PENDING") assignVerificationData(user);
+
+      validUsers.push(user);
+    } catch (err) {
+      errorRecords.push({ row: i + 1, email: user.email, error: err.message });
+    }
+  }
+
+  return { validUsers, errorRecords };
+}
+
+function sanitizeUserFields(user) {
+  user.fullname = formatFullname(sanitizeInput(user.fullname)?.trim());
+  user.email = sanitizeInput(user.email)?.trim().toLowerCase();
+  user.license_number = sanitizeInput(user.license_number)?.trim();
+  user.phone = sanitizeInput(user.phone)?.trim();
+}
+
+function validateRequiredFields(user) {
+  const required = [user.email, user.fullname, user.current_password, user.date_of_birth];
+  if (required.some((field) => !field))
+    throw new Error("Campos obligatorios faltantes");
+}
+
+function validateUserFormats(user) {
+  if (!regex.fullname.test(user.fullname)) throw new Error("Nombre inválido");
+  if (user.license_number && !regex.license_number.test(user.license_number))
+    throw new Error("Identificación inválida");
+  if (user.phone && !regex.phone.test(user.phone))
+    throw new Error("Teléfono inválido");
+  if (!regex.email.test(user.email)) throw new Error("Email inválido");
+}
+
+function assignVerificationData(user) {
+  user.verificationCode = generateVerificationCode();
+  user.verificationCodeExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+}
+
+async function ensureDepartmentsAndSpecialties(validUsers) {
+  const uniqueDepartments = [
+    ...new Set(validUsers.map((u) => u.department?.toUpperCase()).filter(Boolean)),
+  ];
+
+  const existingDepartments = await prisma.department.findMany({
+    where: { name: { in: uniqueDepartments } },
+    select: { name: true },
+  });
+
+  const existingDeptNames = new Set(existingDepartments.map((d) => d.name));
+  const newDepartments = uniqueDepartments
+    .filter((d) => !existingDeptNames.has(d))
+    .map((name) => ({ name }));
+
+  if (newDepartments.length > 0)
+    await prisma.department.createMany({ data: newDepartments });
+
+  const deptMap = Object.fromEntries(
+    (await prisma.department.findMany()).map((d) => [d.name, d.id])
+  );
+
+  const uniqueSpecs = [
+    ...new Set(
+      validUsers
+        .filter((u) => u.specialty && u.department)
+        .map((u) => `${u.specialty.toUpperCase()}|${u.department.toUpperCase()}`)
+    ),
+  ];
+
+  const specData = uniqueSpecs.map((pair) => {
+    const [name, dept] = pair.split("|");
+    return { name, departmentId: deptMap[dept] };
+  });
+
+  const existingSpecs = await prisma.specialty.findMany({
+    where: {
+      OR: specData.map((s) => ({
+        name: s.name,
+        departmentId: s.departmentId,
+      })),
+    },
+    select: { name: true, departmentId: true },
+  });
+
+  const existingSpecSet = new Set(
+    existingSpecs.map((s) => `${s.name}|${s.departmentId}`)
+  );
+
+  const newSpecs = specData.filter(
+    (s) => !existingSpecSet.has(`${s.name}|${s.departmentId}`)
+  );
+
+  if (newSpecs.length > 0)
+    await prisma.specialty.createMany({ data: newSpecs });
+
+  const allSpecs = await prisma.specialty.findMany();
+  const specMap = Object.fromEntries(
+    allSpecs.map((s) => [`${s.name}|${s.departmentId}`, s.id])
+  );
+
+  return { deptMap, specMap };
+}
+
+async function hashPasswords(validUsers) {
+  await Promise.all(
+    validUsers.map(async (u) => {
+      u.hashedPassword = await bcrypt.hash(u.current_password, 10);
+    })
+  );
+}
+
+async function insertUsers(validUsers, deptMap, specMap) {
+  await prisma.users.createMany({
+    data: validUsers.map((u) => ({
+      email: u.email,
+      fullname: u.fullname,
+      current_password: u.hashedPassword,
+      status: u.status || "PENDING",
+      date_of_birth: u.date_of_birth,
+      age: u.age,
+      license_number: u.license_number || null,
+      phone: u.phone || null,
+      role: u.role,
+      departmentId: u.department ? deptMap[u.department?.toUpperCase()] : null,
+      specialtyId:
+        u.specialty && u.department
+          ? specMap[`${u.specialty.toUpperCase()}|${deptMap[u.department?.toUpperCase()]}`]
+          : null,
+      verificationCode: u.verificationCode || null,
+      verificationCodeExpires: u.verificationCodeExpires || null,
+    })),
+  });
+}
+
+async function sendVerificationEmails(validUsers) {
+  const pendingUsers = validUsers.filter(
+    (u) => u.status === "PENDING" && u.verificationCode
+  );
+
+  // No esperamos el resultado
+  Promise.all(
+    pendingUsers.map((u) =>
+      sendVerificationEmail(u.email, u.fullname, u.verificationCode).catch(() => {})
+    )
+  ).then(() => {
+    
+  });
+}
+
+async function finalizeUpload(req, validUsers) {
+  fs.unlink(req.file.path, () => {});
+  await prisma.fileUploadLog.create({
+    data: { filename: req.file.originalname, userId: req.user?.id || null },
+  });
+
+  await logEvent({
+    userId: req.user.id,
+    email: req.user.email,
+    role: req.user.role,
+    action: "BULK_UPLOAD_USERS",
+    outcome: "SUCCESS",
+    reason: `Carga masiva de ${validUsers.length} usuarios`,
+    ip: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+}
+
+// ======================================================
+// MÉTODO PRINCIPAL: bulkUploadUsers
+// ======================================================
+
+const bulkUploadUsers = async (req, res) => {
+  if (!req.file)
+    return res.status(400).json({ message: "Archivo CSV requerido." });
+
+  if (await checkExistingFile(req, res)) return;
 
   try {
     validateFileFormat(req.file);
@@ -105,277 +313,109 @@ const bulkUploadUsers = async (req, res) => {
     return res.status(400).json({ message: err.message });
   }
 
-  const errorRecords = [];
-  const successRecords = [];
-  const results = [];
-  const usersToInsert = [];
+  try {
+    const usersToInsert = await parseCsv(req.file.path);
+    const { validUsers, errorRecords } = await preprocessUsers(usersToInsert);
 
-  fs.createReadStream(req.file.path, { encoding: "utf8" })
-    .pipe(
-      csv({
-        separator: ",",
-        mapHeaders: ({ header }) =>
-          header.replace(/^\uFEFF/, "").trim(), // quita BOM y espacios
-      })
-    )
-    .on("data", (row) => {
-      usersToInsert.push({
-        email: row.email,
-        fullname: row.fullname,
-        role: row.role,
-        current_password: row.current_password,
-        status: row.status,
-        specialty: row.specialization,
-        department: row.department,
-        license_number: row.license_number,
-        phone: row.phone,
-        date_of_birth: row.date_of_birth,
-      });
-    })
-    .on("end", async () => {
-      for (let index = 0; index < usersToInsert.length; index++) {
-        const user = usersToInsert[index];
-        try {
-          // Sanitizar inputs
-          user.fullname = formatFullname(user.fullname);
-          user.fullname = sanitizeInput(user.fullname)?.trim();
-          user.email = sanitizeInput(user.email)?.trim().toLowerCase();
-          user.license_number = sanitizeInput(user.license_number)?.trim();
-          user.phone = sanitizeInput(user.phone)?.trim();
-
-          // Campos obligatorios
-          if (!user.email || !user.fullname || !user.current_password || !user.date_of_birth) {
-            throw new Error("Campos obligatorios faltantes (email, nombre, contraseña, fecha de nacimiento)");
-          }
-
-          // Regex
-          if (!regex.fullname.test(user.fullname)) {
-            throw new Error("Nombre inválido. Debe estar en formato 'Nombre Apellido', solo letras y espacios.");
-          }
-          if (user.license_number && !regex.license_number.test(user.license_number)) {
-            throw new Error("Identificación inválida");
-          }
-          if (user.phone && !regex.phone.test(user.phone)) {
-            throw new Error("Teléfono inválido");
-          }
-          if (!regex.email.test(user.email)) {
-            throw new Error("Email inválido");
-          }
-
-          // Validación edad
-          if (user.date_of_birth) {
-            const dob = new Date(user.date_of_birth);
-            user.age = validateAge(dob);
-            user.date_of_birth = dob;
-          }
-
-          // Hash password
-          user.hashedPassword = await bcrypt.hash(user.current_password, 10);
-
-          // Normalizar role
-          if (!user.role) {
-            user.role = Role.USER;
-          } else {
-            const mappedRole = roleMap[user.role.toUpperCase()];
-            if (!mappedRole) {
-              throw new Error(
-                `Rol inválido (${user.role}). Debe ser uno de: ${Object.keys(roleMap).join(", ")}`
-              );
-            }
-            user.role = mappedRole;
-          }
-
-          // Department
-          if (user.department) {
-            const dept = await prisma.department.upsert({
-              where: { name: user.department.toUpperCase() },
-              update: {},
-              create: { name: user.department.toUpperCase() },
-            });
-            user.departmentId = dept.id;
-          }
-
-          // Specialty
-          if (user.specialty && user.departmentId) {
-            const spec = await prisma.specialty.upsert({
-              where: {
-                name_departmentId: {
-                  name: user.specialty.toUpperCase(),
-                  departmentId: user.departmentId
-                }
-              },
-              update: {},
-              create: {
-                name: user.specialty.toUpperCase(),
-                departmentId: user.departmentId
-              }
-            });
-            user.specialtyId = spec.id;
-          }
-
-
-          // Generar código de verificación si el estado es PENDING
-          if (user.status === "PENDING") {
-            user.verificationCode = generateVerificationCode();
-            user.verificationCodeExpires = new Date();
-            user.verificationCodeExpires.setHours(user.verificationCodeExpires.getHours() + 24);
-          }
-
-          // Insert/Update usuario
-          const savedUser = await prisma.users.create({
-            data: {
-              email: user.email,
-              fullname: user.fullname,
-              current_password: user.hashedPassword,
-              status: user.status || "PENDING",
-              date_of_birth: user.date_of_birth,
-              age: user.age,
-              license_number: user.license_number || null,
-              phone: user.phone || null,
-              role: user.role,
-              departmentId: user.departmentId || null,
-              specialtyId: user.specialtyId || null,
-              verificationCode: user.verificationCode || null,
-              verificationCodeExpires: user.verificationCodeExpires || null,
-            }
-          });
-
-          // Enviar email de verificación si el estado es PENDING
-          if (savedUser.status === "PENDING" && savedUser.verificationCode) {
-            await sendVerificationEmail(
-              savedUser.email,
-              savedUser.fullname,
-              savedUser.verificationCode
-            );
-          }
-
-          successRecords.push(savedUser);
-        } catch (err) {
-          errorRecords.push({
-            row: index + 1,
-            email: user.email || null,
-            error: err.message,
-          });
-        }
-      }
-
-      fs.unlink(req.file.path, () => {});
-
-      // Registrar el archivo subido en FileUploadLog
-      await prisma.fileUploadLog.create({
-        data: {
-          filename: req.file.originalname,
-          userId: req.user?.id || null
-        }
-      });
-
-      // Log de auditoría
-      await logEvent({
-          userId: req.user.id,
-          email: req.user.email,
-          role: req.user.role,
-          action: "BULK_UPLOAD_USERS",
-          outcome: "SUCCESS",
-          reason: `Cargue masivo de ${results.length} usuarios`,
-          ip: req.ip,
-          userAgent: req.headers["user-agent"]
-        });
-
-      return res.status(200).json({
-        message: "Carga masiva procesada",
-        success: successRecords.length,
-        failed: errorRecords.length,
+    if (validUsers.length === 0)
+      return res.status(400).json({
+        message: "Todos los registros son inválidos",
         errors: errorRecords,
       });
-    })
-    .on("error", (err) => {
-      return res.status(500).json({ message: "Error leyendo CSV", error: err.message });
+
+    const { deptMap, specMap } = await ensureDepartmentsAndSpecialties(validUsers);
+    await hashPasswords(validUsers);
+    await insertUsers(validUsers, deptMap, specMap);
+    sendVerificationEmails(validUsers);
+    await finalizeUpload(req, validUsers);
+
+    res.status(200).json({
+      message: "Carga masiva completada",
+      success: validUsers.length,
+      failed: errorRecords.length,
+      errors: errorRecords,
     });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error procesando CSV", error: err.message });
+  }
 };
 
-const bulkDeleteUsers = async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: "Archivo CSV requerido." });
-  }
+async function processUserDeletions(usersToDelete) {
+  const successRecords = [];
+  const errorRecords = [];
 
-  const usersToDelete = [];
+  const deletionPromises = usersToDelete.map(async (user, index) => {
+    const row = index + 1;
 
-  fs.createReadStream(req.file.path, { encoding: "utf8" })
-    .pipe(
-      csv({
-        separator: ",",
-        mapHeaders: ({ header }) =>
-          header.replace(/^\uFEFF/, "").trim(),
-      })
-    )
-    .on("data", (row) => {
-      usersToDelete.push(row);
-    })
-    .on("end", async () => {
-      const successRecords = [];
-      const errorRecords = [];
+    try {
+      if (!user.email) throw new Error("El campo email es obligatorio");
 
-      try {
-        for (let i = 0; i < usersToDelete.length; i++) {
-          const user = usersToDelete[i];
-          try {
-            if (!user.email) {
-              throw new Error("El campo email es obligatorio");
-            }
+      const deleted = await prisma.users.deleteMany({
+        where: { email: user.email },
+      });
 
-            // Intentar eliminar usuario
-            const deleted = await prisma.users.deleteMany({
-              where: { email: user.email }
-            });
-
-            if (deleted.count > 0) {
-              successRecords.push({ row: i + 1, email: user.email });
-            } else {
-              throw new Error(`No se encontró usuario con email: ${user.email}`);
-            }
-          } catch (err) {
-            errorRecords.push({
-              row: i + 1,
-              email: user.email || null,
-              error: err.message
-            });
-          }
-        }
-
-        // Eliminar referencia al archivo de la tabla FileUploadLog
-        await prisma.fileUploadLog.deleteMany({
-          where: { filename: req.file.originalname }
-        });
-
-        // Log de auditoría
-        await logEvent({
-          userId: req.user.id,
-          email: req.user.email,
-          role: req.user.role,
-          action: "BULK_DELETE_USERS",
-          outcome: "SUCCESS",
-          reason: `Eliminación masiva: ${successRecords.length} exitosos, ${errorRecords.length} fallidos`,
-          ip: req.ip,
-          userAgent: req.headers["user-agent"]
-        });
-
-        return res.status(200).json({
-          message: "Eliminación masiva procesada",
-          success: successRecords.length,
-          failed: errorRecords.length,
-          successes: successRecords,
-          errors: errorRecords
-        });
-      } catch (err) {
-        return res.status(400).json({ message: "Error en eliminación masiva", error: err.message });
-      } finally {
-        // Borrar archivo temporal subido
-        fs.unlink(req.file.path, () => {});
+      if (deleted.count > 0) {
+        successRecords.push({ row, email: user.email });
+      } else {
+        throw new Error(`No se encontró usuario con email: ${user.email}`);
       }
-    })
-    .on("error", (err) => {
-      return res.status(500).json({ message: "Error leyendo CSV", error: err.message });
+    } catch (err) {
+      errorRecords.push({
+        row,
+        email: user.email || null,
+        error: err.message,
+      });
+    }
+  });
+
+  await Promise.all(deletionPromises);
+  return { successRecords, errorRecords };
+}
+
+async function finalizeDelete(req, successRecords, errorRecords) {
+  await prisma.fileUploadLog.deleteMany({
+    where: { filename: req.file.originalname },
+  });
+
+  await logEvent({
+    userId: req.user.id,
+    email: req.user.email,
+    role: req.user.role,
+    action: "BULK_DELETE_USERS",
+    outcome: "SUCCESS",
+    reason: `Eliminación masiva: ${successRecords.length} exitosos, ${errorRecords.length} fallidos`,
+    ip: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+}
+
+// ======================================================
+// MÉTODO PRINCIPAL: bulkDeleteUsers
+// ======================================================
+
+const bulkDeleteUsers = async (req, res) => {
+  if (!req.file)
+    return res.status(400).json({ message: "Archivo CSV requerido." });
+
+  try {
+    const usersToDelete = await parseCsv(req.file.path);
+    const { successRecords, errorRecords } = await processUserDeletions(usersToDelete);
+
+    await finalizeDelete(req, successRecords, errorRecords);
+
+    res.status(200).json({
+      message: "Eliminación masiva procesada",
+      success: successRecords.length,
+      failed: errorRecords.length,
+      successes: successRecords,
+      errors: errorRecords,
     });
+  } catch (err) {
+    res.status(400).json({ message: "Error en eliminación masiva", error: err.message });
+  } finally {
+    fs.unlink(req.file.path, () => {});
+  }
 };
 
 module.exports = { bulkUploadUsers, bulkDeleteUsers };
