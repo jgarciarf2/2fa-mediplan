@@ -7,14 +7,15 @@ const cors = require('cors');
 
 require('dotenv').config();
 const port =  process.env.PORT || 3002;
-const server = app.listen(port, () => {
-  console.log(`Servidor local corriendo en http://localhost:${port}`);
-})
+
 
 console.log('FRONTEND_PORT:', process.env.FRONTEND_PORT);
 console.log('PORT:', port);
 
 const app = express();
+const server = app.listen(port, () => {
+  console.log(`Servidor local corriendo en http://localhost:${port}`);
+})
 
 app.use(cors({
     origin: process.env.FRONTEND_PORT,
