@@ -611,4 +611,4 @@ const resetPasswordWithCode = async (req, res) => {
   return res.status(200).json({ msg: "Contraseña actualizada correctamente." });
 };
 
-module.exports = {signUp, verifyEmail, resendVerificationCode, signIn, verify2faLogin, refreshToken, logout, requestPasswordReset, resetPasswordWithCode, calculateAge };
+module.exports = {signUp, verifyEmail, resendVerificationCode, signIn, verify2faLogin, refreshToken, logout, requestPasswordReset, resetPasswordWithCode, calculateAge, validateAge };

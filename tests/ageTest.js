@@ -2,7 +2,8 @@ const mongoose = require("mongoose");
 const supertest = require("supertest");
 const {app, server} = require("../api/index");
 const api = supertest(app) 
-const { calculateAge } = require("../src/controllers/authController");
+const { calculateAge, validateAge } = require("../src/controllers/authController");
+
 
 describe("calculateAge()", () => {
   test("debería calcular correctamente la edad para una fecha de nacimiento pasada", () => {
@@ -25,6 +26,29 @@ describe("calculateAge()", () => {
   });
 });
 
+describe("validateAge()", () => {
+  test("debería devolver la edad si está entre 0 y 100", () => {
+    const dob = "1989-05-10";
+    const age = validateAge(dob);
+    expect(age).toBeGreaterThanOrEqual(0);
+    expect(age).toBeLessThanOrEqual(100);
+  });
+
+  test("debería lanzar error si la edad es negativa (fecha futura)", () => {
+    const futureDate = "2234-01-01";
+    expect(() => validateAge(futureDate)).toThrow("Edad inválida");
+  });
+
+  test("debería lanzar error si la edad es mayor a 100 años", () => {
+    const oldDate = "1700-01-01";
+    expect(() => validateAge(oldDate)).toThrow("Edad inválida");
+  });
+
+  test("debería lanzar error si la fecha es inválida", () => {
+    const invalidDate = "fecha-no-valida";
+    expect(() => validateAge(invalidDate)).toThrow("Edad inválida");
+  });
+});
 
 afterAll(() => {
   mongoose.connection.close();
