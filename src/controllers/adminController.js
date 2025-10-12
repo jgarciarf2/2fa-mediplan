@@ -264,6 +264,57 @@ async function insertUsers(validUsers, deptMap, specMap) {
   });
 }
 
+async function createPatientDemographics(validUsers, deptMap, specMap) {
+  const patientEmails = validUsers
+    .filter(u => u.role === "PACIENTE")
+    .map(u => u.email)
+    .filter(Boolean); // evita undefined o vacíos
+
+  if (patientEmails.length === 0) {
+    console.log("ℹ️ No hay pacientes en la carga actual.");
+    return;
+  }
+
+  const patientUsers = await prisma.users.findMany({
+    where: { email: { in: patientEmails } },
+    select: {
+      id: true,
+      fullname: true,
+      date_of_birth: true,
+      age: true,
+      phone: true,
+      departmentId: true,
+      specialtyId: true,
+    },
+  });
+
+  const existing = await prisma.patientDemographics.findMany({
+    where: { userId: { in: patientUsers.map(u => u.id) } },
+    select: { userId: true },
+  });
+
+  const existingIds = new Set(existing.map(e => e.userId));
+
+  const newPatients = patientUsers
+    .filter(u => !existingIds.has(u.id))
+    .map(u => ({
+      userId: u.id,
+      fullName: u.fullname,
+      date_of_birth: u.date_of_birth,
+      age: u.age,
+      phone: u.phone || null,
+      departmentId: u.departmentId || null,
+      specialtyId: u.specialtyId || null,
+    }));
+
+  if (newPatients.length > 0) {
+    await prisma.patientDemographics.createMany({ data: newPatients });
+    console.log(`Se crearon ${newPatients.length} registros demográficos.`);
+  } else {
+    console.log("No se encontraron pacientes nuevos para registrar.");
+  }
+}
+
 async function sendVerificationEmails(validUsers) {
   const pendingUsers = validUsers.filter(
     (u) => u.status === "PENDING" && u.verificationCode
@@ -326,6 +377,7 @@ const bulkUploadUsers = async (req, res) => {
     const { deptMap, specMap } = await ensureDepartmentsAndSpecialties(validUsers);
     await hashPasswords(validUsers);
     await insertUsers(validUsers, deptMap, specMap);
+    await createPatientDemographics(validUsers, deptMap, specMap);
     sendVerificationEmails(validUsers);
     await finalizeUpload(req, validUsers);
 

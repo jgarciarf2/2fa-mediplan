@@ -15,47 +15,68 @@ datasource db {
 }
 
 model Users {
-  id                      String      @id @default(auto()) @map("_id") @db.ObjectId
-  email                   String      @unique
+  id                      String               @id @default(auto()) @map("_id") @db.ObjectId
+  email                   String               @unique
   fullname                String
-  status                  Status      @default(PENDING)
+  status                  Status               @default(PENDING)
   verificationCode        String?
   verificationCodeExpires DateTime?
   refreshToken            String?
   current_password        String
-  failedAttempts          Int         @default(0)
-  role                    Role        @default(USER)
+  failedAttempts          Int                  @default(0)
+  role                    Role                 @default(USER)
   date_of_birth           DateTime?
   age                     Int?
-  license_number          String?     @unique
-  phone                   String?     @unique
-  departmentId            String?     @db.ObjectId
-  department              Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  specialtyId             String?     @db.ObjectId
-  specialty               Specialty?  @relation(fields: [specialtyId], references: [id], onDelete: SetNull)
-  createdAt               DateTime    @default(now())
-  updatedAt               DateTime    @updatedAt
+  license_number          String?              @unique
+  phone                   String?              @unique
+  departmentId            String?              @db.ObjectId
+  department              Department?          @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  specialtyId             String?              @db.ObjectId
+  specialty               Specialty?           @relation(fields: [specialtyId], references: [id], onDelete: SetNull)
+  patientDemographics     PatientDemographics? @relation("UserPatientDemographics")
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
 }
 
 model Department {
-  id          String      @id @default(auto()) @map("_id") @db.ObjectId
-  name        String      @unique
-  users       Users[]
-  specialties Specialty[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id                  String                @id @default(auto()) @map("_id") @db.ObjectId
+  name                String                @unique
+  users               Users[]
+  specialties         Specialty[]
+  patientDemographics PatientDemographics[]
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
 }
 
 model Specialty {
-  id           String     @id @default(auto()) @map("_id") @db.ObjectId
-  name         String
-  departmentId String     @db.ObjectId
-  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
-  users        Users[]
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id                  String                @id @default(auto()) @map("_id") @db.ObjectId
+  name                String
+  departmentId        String                @db.ObjectId
+  department          Department            @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  users               Users[]
+  patientDemographics PatientDemographics[]
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
 
   @@unique([name, departmentId])
+}
+
+model PatientDemographics {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String      @unique @db.ObjectId
+  user          Users       @relation("UserPatientDemographics", fields: [userId], references: [id], onDelete: Cascade)
+  fullName      String
+  date_of_birth DateTime?
+  age           Int?
+  gender        String?
+  phone         String?
+  address       String?
+  departmentId  String?     @db.ObjectId
+  specialtyId   String?     @db.ObjectId
+  department    Department? @relation(fields: [departmentId], references: [id])
+  specialty     Specialty?  @relation(fields: [specialtyId], references: [id])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 }
 
 model AuditLog {

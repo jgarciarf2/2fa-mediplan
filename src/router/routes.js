@@ -6,7 +6,8 @@ const departments = require('./departmentRoutes');
 const specialties = require('./specialityRoutes');
 const userSpecialties = require('./userSpecialityRoutes');
 const userRoutes = require('./userRoutes');
-const bulkRoutes = require('./bulkRoutes')
+const bulkRoutes = require('./bulkRoutes');
+const patientRoutes = require('./patientRoutes');
 const { getAuditLogs } = require('../controllers/auditController');
 
 console.log('Cargando rutas principales...');
@@ -26,6 +27,8 @@ router.use("/specialties", specialties);
 router.use("/user-specialties", userSpecialties);
 router.get("/audit-logs", getAuditLogs);
 router.use("/users", userRoutes);
-router.use("/bulk", bulkRoutes)
+router.use("/bulk", bulkRoutes);
+router.use('/patients', patientRoutes);
+
 
 module.exports = router;

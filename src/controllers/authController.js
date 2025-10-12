@@ -104,6 +104,20 @@ const signUp = async (req, res) => {
         }
     });
 
+    // Si el rol es PACIENTE, crear registro en patientDemographics
+    if (createUser.role === 'PACIENTE') {
+      await prisma.patientDemographics.create({
+        data: {
+          userId: createUser.id,
+          fullName: fullname,
+          dateOfBirth: dob,
+          age,
+          phone: phone || null,
+          departmentId: departmentId || null,
+          specialtyId: specialtyId || null
+        }
+      });
+    }
     const emailResult = await sendVerificationEmail(email, fullname, verificationCode);
     if (!emailResult.success) {
         //si hay un error borramos el usuario creado
