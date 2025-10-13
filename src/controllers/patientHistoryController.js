@@ -9,12 +9,16 @@ const getPatientHistory = async (req, res) => {
   try {
     const history = await prisma.patientHistory.findUnique({
       where: { patientId },
-      include: { patient: true },
+      include: { 
+        patient: true,
+        medicalRecords: {
+          include: { doctor: true },
+          orderBy: { date: "desc" } // últimos primero
+        }
+      }  
     });
 
-    if (!history) {
-      return res.status(404).json({ msg: "Historia clínica no encontrada" });
-    }
+    if (!history) return res.status(404).json({ msg: "Historia clínica no encontrada" });
 
     await logEvent({
       userId: req.user.id,
@@ -92,7 +96,64 @@ const updatePatientHistory = async (req, res) => {
   }
 };
 
+const getPatientTimeline = async (req, res) => {
+  const { patientId } = req.params;
+
+  try {
+    // Buscamos la historia clínica
+    const history = await prisma.patientHistory.findUnique({
+      where: { patientId },
+      select: {
+        id: true,
+        medicalRecords: {
+          include: { doctor: true },
+          orderBy: { date: "desc" } // últimos primero
+        }
+      }
+    });
+
+    if (!history) return res.status(404).json({ msg: "Historia clínica no encontrada" });
+
+    // Mapear los registros para la timeline
+    const timeline = history.medicalRecords.map(record => ({
+      id: record.id,
+      date: record.date,
+      diagnosis: record.diagnosis,
+      treatment: record.treatment,
+      doctor: record.doctor ? record.doctor.fullname : null,
+      notes: record.notes
+    }));
+
+    await logEvent({
+      userId: req.user.id,
+      email: req.user.email,
+      role: req.user.role,
+      action: "GET_PATIENT_TIMELINE",
+      outcome: "SUCCESS",
+      reason: `Timeline del paciente ${patientId} consultada correctamente`,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    res.status(200).json(timeline);
+  } catch (err) {
+    await logEvent({
+      userId: req.user?.id,
+      email: req.user?.email,
+      role: req.user?.role,
+      action: "GET_PATIENT_TIMELINE",
+      outcome: "FAILURE",
+      reason: err.message,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    res.status(500).json({ msg: "Error obteniendo timeline", error: err.message });
+  }
+};
+
 module.exports = {
   getPatientHistory,
   updatePatientHistory,
+  getPatientTimeline,
 };
