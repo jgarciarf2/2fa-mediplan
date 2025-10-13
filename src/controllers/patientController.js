@@ -1,6 +1,27 @@
 const { PrismaClient } = require("../generated/prisma");
 const prisma = new PrismaClient();
 const { logEvent } = require("../services/auditService");
+const client = require("../config/elasticClient");
+
+// Indexación de paciente para búsquedas avanzadas
+async function indexPatient(patient) {
+  await client.index({
+    index: "patients",
+    id: patient.id, // ID de MongoDB
+    body: {
+      fullName: patient.fullName,
+      phone: patient.phone,
+      email: patient.user?.email,
+      age: patient.age,
+      gender: patient.gender,
+      address: patient.address,
+      departmentId: patient.departmentId,
+      specialtyId: patient.specialtyId,
+      diagnosis: patient.patientHistory?.medicalRecords?.map(r => r.diagnosis).join(", ") || "",
+      createdAt: patient.createdAt
+    }
+  });
+}
 
 // Crear paciente
 const createPatient = async (req, res) => {
@@ -22,19 +43,38 @@ const createPatient = async (req, res) => {
     const dob = new Date(user.date_of_birth);
     const age = new Date().getFullYear() - dob.getFullYear();
 
-    const patient = await prisma.patientDemographics.create({
-      data: {
-        userId: user.id,
-        fullName: user.fullname,
-        date_of_birth: user.date_of_birth,
-        age,
-        gender: gender || null,
-        phone: phone || null,
-        address: address || null,
-        departmentId: departmentId || null,
-        specialtyId: specialtyId || null,
-      },
+    // 🔒 Transacción para crear ambos registros juntos (demografía + historia)
+    const [patient, history] = await prisma.$transaction([
+      prisma.patientDemographics.create({
+        data: {
+          userId: user.id,
+          fullName: user.fullname,
+          date_of_birth: user.date_of_birth,
+          age,
+          gender: gender || null,
+          phone: phone || null,
+          address: address || null,
+          departmentId: departmentId || null,
+          specialtyId: specialtyId || null,
+        },
+      }),
+      prisma.patientHistory.create({
+        data: {
+          patientId: undefined, // se asigna luego dentro de la transacción
+          allergies: null,
+          chronicDiseases: null,
+          bloodType: null,
+        },
+      }),
+    ]);
+
+    // ⚠️ Ajuste: necesitamos asignar patientId al crear la historia
+    await prisma.patientHistory.update({
+      where: { id: history.id },
+      data: { patientId: patient.id },
     });
+
+    await indexPatient(patient);
 
     await logEvent({
       userId: req.user.id,
@@ -42,12 +82,15 @@ const createPatient = async (req, res) => {
       role: req.user.role,
       action: "CREATE_DEMOGRAPHIC_PATIENT",
       outcome: "SUCCESS",
-      reason: `Demografia del paciente ${user.fullname} creado correctamente`,
+      reason: `Demografía e historia clínica creadas para el paciente ${user.fullname}.`,
       ip: req.ip,
       userAgent: req.headers["user-agent"],
     });
 
-    return res.status(201).json(patient);
+    return res.status(201).json({
+      msg: "Paciente y su historia clínica creados correctamente.",
+      patient,
+    });
   } catch (err) {
     await logEvent({
       userId: req.user?.id,
@@ -60,7 +103,10 @@ const createPatient = async (req, res) => {
       userAgent: req.headers["user-agent"],
     });
 
-    return res.status(500).json({ msg: "Error creando la demografia del paciente", error: err.message });
+    return res.status(500).json({
+      msg: "Error creando la demografía o historia clínica del paciente",
+      error: err.message,
+    });
   }
 };
 
@@ -68,7 +114,7 @@ const createPatient = async (req, res) => {
 const getAllPatients = async (req, res) => {
   try {
     const patients = await prisma.patientDemographics.findMany({
-      include: { user: true, department: true, specialty: true }
+      include: { user: true, department: true, specialty: true, patientHistory: true}
     });
 
     await logEvent({
@@ -105,7 +151,7 @@ const getPatientById = async (req, res) => {
   try {
     const patient = await prisma.patientDemographics.findUnique({
       where: { id },
-      include: { user: true, department: true, specialty: true }
+      include: { user: true, department: true, specialty: true, patientHistory: true }
     });
 
     if (!patient) {
@@ -151,6 +197,8 @@ const updatePatient = async (req, res) => {
       data
     });
 
+    await indexPatient(updated);
+
     await logEvent({
       userId: req.user.id,
       email: req.user.email,
@@ -179,11 +227,20 @@ const updatePatient = async (req, res) => {
   }
 };
 
+//borrar paciente del índice
+async function removePatientFromIndex(patientId) {
+  await client.delete({
+    index: "patients",
+    id: patientId
+  });
+}
+
 // Eliminar paciente
 const deletePatient = async (req, res) => {
   const { id } = req.params;
   try {
     await prisma.patientDemographics.delete({ where: { id } });
+    await removePatientFromIndex(id);
 
     await logEvent({
       userId: req.user.id,

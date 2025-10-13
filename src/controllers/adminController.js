@@ -315,6 +315,61 @@ async function createPatientDemographics(validUsers, deptMap, specMap) {
   }
 }
 
+async function createPatientHistories(validUsers) {
+  // 1️⃣ Tomar los correos de los pacientes cargados en el CSV
+  const patientEmails = validUsers
+    .filter(u => u.role === "PACIENTE")
+    .map(u => u.email)
+    .filter(Boolean);
+
+  if (patientEmails.length === 0) {
+    console.log("ℹ️ No hay pacientes en la carga actual.");
+    return;
+  }
+
+  // 2️⃣ Buscar sus usuarios recién insertados en la BD
+  const patients = await prisma.users.findMany({
+    where: { email: { in: patientEmails } },
+    select: { id: true, email: true },
+  });
+
+  // 3️⃣ Buscar sus datos demográficos
+  const demographics = await prisma.patientDemographics.findMany({
+    where: { userId: { in: patients.map(p => p.id) } },
+    select: { id: true, userId: true },
+  });
+
+  if (demographics.length === 0) {
+    console.log("ℹ️ No se encontraron registros demográficos para estos pacientes.");
+    return;
+  }
+
+  // 4️⃣ Consultar los que ya tienen historia clínica
+  const existingHistories = await prisma.patientHistory.findMany({
+    where: { patientId: { in: demographics.map(d => d.id) } },
+    select: { patientId: true },
+  });
+
+  const existingIds = new Set(existingHistories.map(h => h.patientId));
+
+  // 5️⃣ Crear las nuevas historias para los que no tengan
+  const newHistories = demographics
+    .filter(d => !existingIds.has(d.id))
+    .map(d => ({
+      patientId: d.id,
+      allergies: null,
+      chronicDiseases: null,
+      bloodType: null,
+    }));
+
+  if (newHistories.length > 0) {
+    await prisma.patientHistory.createMany({ data: newHistories });
+    console.log(`🩺 Se crearon ${newHistories.length} historias clínicas nuevas.`);
+  } else {
+    console.log("✅ Todos los pacientes ya tenían historia clínica.");
+  }
+}
+
 async function sendVerificationEmails(validUsers) {
   const pendingUsers = validUsers.filter(
     (u) => u.status === "PENDING" && u.verificationCode
@@ -378,6 +433,7 @@ const bulkUploadUsers = async (req, res) => {
     await hashPasswords(validUsers);
     await insertUsers(validUsers, deptMap, specMap);
     await createPatientDemographics(validUsers, deptMap, specMap);
+    await createPatientHistories(validUsers);
     sendVerificationEmails(validUsers);
     await finalizeUpload(req, validUsers);
 
