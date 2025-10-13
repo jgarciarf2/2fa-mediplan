@@ -13,9 +13,10 @@ jest.mock("../../src/config/emailConfig", () => ({
 }));
 
 jest.mock("../../src/controllers/authController", () => ({
+  signUp: jest.fn((req, res) => res.status(201).json({ msg: "Usuario creado (mock)" })),
   validateAge: jest.fn().mockReturnValue(25),
 }));
 
 
 
-module.exports = { bcrypt };
+module.exports = { };

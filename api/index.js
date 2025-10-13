@@ -13,6 +13,16 @@ console.log('FRONTEND_PORT:', process.env.FRONTEND_PORT);
 console.log('PORT:', port);
 
 const app = express();
+
+if (process.env.NODE_ENV === "test") {
+  const testRoutes = require("../src/router/testRoutes");
+  app.use("/api/v1/test", testRoutes);
+} else {
+  const routes = require("../src/router/routes");
+  app.use("/api/v1", routes);
+}
+
+
 const server = app.listen(port, () => {
   console.log(`Servidor local corriendo en http://localhost:${port}`);
 })
