@@ -5,6 +5,10 @@ const routes = require('../src/router/routes');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
+//elastic para búsqueda avanzada de paciventes
+const { createPatientIndex } = require("../src/config/elasticSetup");
+createPatientIndex().catch(err => console.error("Error creando índice:", err));
+
 require('dotenv').config();
 const port =  process.env.PORT || 3002;
 

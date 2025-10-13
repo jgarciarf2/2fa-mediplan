@@ -1,6 +1,27 @@
 const { PrismaClient } = require("../generated/prisma");
 const prisma = new PrismaClient();
 const { logEvent } = require("../services/auditService");
+const client = require("../config/elasticClient");
+
+// Indexación de paciente para búsquedas avanzadas
+async function indexPatient(patient) {
+  await client.index({
+    index: "patients",
+    id: patient.id, // ID de MongoDB
+    body: {
+      fullName: patient.fullName,
+      phone: patient.phone,
+      email: patient.user?.email,
+      age: patient.age,
+      gender: patient.gender,
+      address: patient.address,
+      departmentId: patient.departmentId,
+      specialtyId: patient.specialtyId,
+      diagnosis: patient.patientHistory?.medicalRecords?.map(r => r.diagnosis).join(", ") || "",
+      createdAt: patient.createdAt
+    }
+  });
+}
 
 // Crear paciente
 const createPatient = async (req, res) => {
@@ -52,6 +73,8 @@ const createPatient = async (req, res) => {
       where: { id: history.id },
       data: { patientId: patient.id },
     });
+
+    await indexPatient(patient);
 
     await logEvent({
       userId: req.user.id,
@@ -174,6 +197,8 @@ const updatePatient = async (req, res) => {
       data
     });
 
+    await indexPatient(updated);
+
     await logEvent({
       userId: req.user.id,
       email: req.user.email,
@@ -202,11 +227,20 @@ const updatePatient = async (req, res) => {
   }
 };
 
+//borrar paciente del índice
+async function removePatientFromIndex(patientId) {
+  await client.delete({
+    index: "patients",
+    id: patientId
+  });
+}
+
 // Eliminar paciente
 const deletePatient = async (req, res) => {
   const { id } = req.params;
   try {
     await prisma.patientDemographics.delete({ where: { id } });
+    await removePatientFromIndex(id);
 
     await logEvent({
       userId: req.user.id,
