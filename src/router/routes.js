@@ -1,13 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const authRoutes = require('./authRoutes');
-
 const departments = require('./departmentRoutes');
 const specialties = require('./specialityRoutes');
 const userSpecialties = require('./userSpecialityRoutes');
 const userRoutes = require('./userRoutes');
 const bulkRoutes = require('./bulkRoutes');
 const patientRoutes = require('./patientRoutes');
+const medicalRecordRoutes = require('./medicalRecordRoutes');
+const patientHistoryRoutes = require('./patientHistoryRoutes');
+
 const { getAuditLogs } = require('../controllers/auditController');
 
 console.log('Cargando rutas principales...');
@@ -29,6 +31,7 @@ router.get("/audit-logs", getAuditLogs);
 router.use("/users", userRoutes);
 router.use("/bulk", bulkRoutes);
 router.use('/patients', patientRoutes);
-
+router.use('/medicalRecords', medicalRecordRoutes);
+router.use('/patientHistories', patientHistoryRoutes);
 
 module.exports = router;

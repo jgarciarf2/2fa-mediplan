@@ -36,6 +36,7 @@ model Users {
   patientDemographics     PatientDemographics? @relation("UserPatientDemographics")
   createdAt               DateTime             @default(now())
   updatedAt               DateTime             @updatedAt
+  medicalRecords          MedicalRecord[]
 }
 
 model Department {
@@ -77,6 +78,35 @@ model PatientDemographics {
   specialty     Specialty?  @relation(fields: [specialtyId], references: [id])
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+
+  patientHistory PatientHistory?
+}
+
+model PatientHistory {
+  id              String              @id @default(auto()) @map("_id") @db.ObjectId
+  patientId       String              @unique @db.ObjectId
+  patient         PatientDemographics @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  medicalRecords  MedicalRecord[] // entradas médicas o eventos clínicos
+  allergies       String?
+  chronicDiseases String?
+  bloodType       String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+}
+
+model MedicalRecord {
+  id               String         @id @default(auto()) @map("_id") @db.ObjectId
+  patientHistoryId String         @db.ObjectId
+  patientHistory   PatientHistory @relation(fields: [patientHistoryId], references: [id], onDelete: Cascade)
+  doctorId         String?        @db.ObjectId
+  doctor           Users?         @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  date             DateTime       @default(now())
+  reasonForVisit   String?
+  diagnosis        String
+  treatment        String?
+  notes            String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 }
 
 model AuditLog {
