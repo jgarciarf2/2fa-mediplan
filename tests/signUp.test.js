@@ -1,9 +1,11 @@
-const request = require("supertest");
-const app = require("../api/index"); 
-const bcrypt = require("bcryptjs");
-const prisma = require("../src/config/prismaClient");
 const mockPrisma = require("./mocks/prismaMock");
 const mockUtils = require("./mocks/utilsMocks");
+const mongoose = require("mongoose");
+const request = require("supertest");
+const {app, server} = require("../api/index");
+const bcrypt = require("bcryptjs");
+
+
 
 describe("POST /signup", () => {
 
@@ -14,7 +16,7 @@ describe("POST /signup", () => {
   // 1. Faltan datos obligatorios
   test("debería devolver 400 si faltan datos obligatorios", async () => {
     const res = await request(app)
-      .post("/api/auth/signup")
+      .post("/api/v1/test/sign-up")
       .send({ email: "test@example.com" }); // faltan campos
 
     expect(res.status).toBe(400);
@@ -24,7 +26,7 @@ describe("POST /signup", () => {
   // 2️. Formato de email inválido
   test("debería devolver 400 si el formato de email es incorrecto", async () => {
     const res = await request(app)
-      .post("/api/auth/signup")
+      .post("/api/v1/test/sign-up")
       .send({
         email: "correo-invalido",
         current_password: "Password123!",
@@ -39,7 +41,7 @@ describe("POST /signup", () => {
   // 3️. Contraseña muy corta
   test("debería devolver 400 si la contraseña tiene menos de 6 caracteres", async () => {
     const res = await request(app)
-      .post("/api/auth/signup")
+      .post("/api/v1/test/sign-up")
       .send({
         email: "test@example.com",
         current_password: "Ab1!",
@@ -54,7 +56,7 @@ describe("POST /signup", () => {
   // 4️. Contraseña sin complejidad
   test("debería devolver 400 si la contraseña no cumple con la complejidad", async () => {
     const res = await request(app)
-      .post("/api/auth/signup")
+      .post("/api/v1/test/sign-up")
       .send({
         email: "test@example.com",
         current_password: "abcdefg",
@@ -71,7 +73,7 @@ describe("POST /signup", () => {
     mockPrisma.users.findUnique.mockResolvedValueOnce({ id: 1, email: "test@example.com" });
 
     const res = await request(app)
-      .post("/api/auth/signup")
+      .post("/api/v1/test/sign-up")
       .send({
         email: "test@example.com",
         current_password: "Password123!",
@@ -88,7 +90,7 @@ describe("POST /signup", () => {
     mockPrisma.users.findUnique.mockResolvedValueOnce(null);
 
     const res = await request(app)
-      .post("/api/auth/signup")
+      .post("/api/v1/test/sign-up")
       .send({
         email: "test@example.com",
         current_password: "Password123!",
@@ -113,7 +115,7 @@ describe("POST /signup", () => {
     sendVerificationEmail.mockResolvedValueOnce({ success: true });
 
     const res = await request(app)
-      .post("/api/auth/signup")
+      .post("/api/v1/test/sign-up")
       .send({
         email: "test@example.com",
         current_password: "Password123!",

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authRoutes = require('./authRoutes');
+const testRoutes = require('./testRoutes');
 
 const departments = require('./departmentRoutes');
 const specialties = require('./specialityRoutes');
@@ -29,6 +30,6 @@ router.get("/audit-logs", getAuditLogs);
 router.use("/users", userRoutes);
 router.use("/bulk", bulkRoutes);
 router.use('/patients', patientRoutes);
-
+router.use("/test", testRoutes);
 
 module.exports = router;

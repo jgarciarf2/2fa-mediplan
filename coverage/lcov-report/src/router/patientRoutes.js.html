@@ -3,7 +3,7 @@
 <html lang="en">
 
 <head>
-    <title>Code coverage report for src/router/authRoutes.js</title>
+    <title>Code coverage report for src/router/patientRoutes.js</title>
     <meta charset="utf-8" />
     <link rel="stylesheet" href="../../prettify.css" />
     <link rel="stylesheet" href="../../base.css" />
@@ -19,13 +19,13 @@
 <body>
 <div class='wrapper'>
     <div class='pad1'>
-        <h1><a href="../../index.html">All files</a> / <a href="index.html">src/router</a> authRoutes.js</h1>
+        <h1><a href="../../index.html">All files</a> / <a href="index.html">src/router</a> patientRoutes.js</h1>
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>25/25</span>
+                <span class='fraction'>14/14</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>25/25</span>
+                <span class='fraction'>14/14</span>
             </div>
         
             
@@ -77,17 +77,7 @@
 <a name='L12'></a><a href='#L12'>12</a>
 <a name='L13'></a><a href='#L13'>13</a>
 <a name='L14'></a><a href='#L14'>14</a>
-<a name='L15'></a><a href='#L15'>15</a>
-<a name='L16'></a><a href='#L16'>16</a>
-<a name='L17'></a><a href='#L17'>17</a>
-<a name='L18'></a><a href='#L18'>18</a>
-<a name='L19'></a><a href='#L19'>19</a>
-<a name='L20'></a><a href='#L20'>20</a>
-<a name='L21'></a><a href='#L21'>21</a>
-<a name='L22'></a><a href='#L22'>22</a>
-<a name='L23'></a><a href='#L23'>23</a>
-<a name='L24'></a><a href='#L24'>24</a>
-<a name='L25'></a><a href='#L25'>25</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L15'></a><a href='#L15'>15</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -101,41 +91,21 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span></td><td class="text"><pre class="prettyprint lang-js">const authController = require('../controllers/authController');
-const express = require('express');
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const express = require('express');
 const router = express.Router();
+const patientService = require('../controllers/patientController');
 const authenticateJWT = require('../middlewares/authMiddleware');
 const authorize = require('../middlewares/authorize');
-const multer = require('multer');
-const os = require('os');
 &nbsp;
-// Configuración de multer para manejar archivos en memoria
-const upload = multer({
-  dest: os.tmpdir(),
-});
-console.log('Cargando authRoutes...');
+//http://localhost:3002/api/v1/patients
+router.post('/', authenticateJWT, authorize(["ADMIN"]), patientService.createPatient);
+router.get('/', authenticateJWT, authorize(["ADMIN"]), patientService.getAllPatients);
+router.get('/:id', authenticateJWT, authorize(["ADMIN"]), patientService.getPatientById);
+router.put('/:id', authenticateJWT, authorize(["ADMIN"]), patientService.updatePatient);
+router.delete('/:id', authenticateJWT, authorize(["ADMIN"]), patientService.deletePatient);
 &nbsp;
-//http://localhost:3002/api/v1/auth
-router.post('/sign-up', authenticateJWT, authorize(["ADMIN"]), authController.signUp);
-router.post('/sign-in', authController.signIn);
-router.post("/resend-verification", authController.resendVerificationCode);
-router.post("/verify-email", authController.verifyEmail);
-router.post("/verify-2fa", authController.verify2faLogin);
-router.post("/refresh-token", authController.refreshToken);
-router.post("/logout", authController.logout);
-router.post("/password-reset", authController.requestPasswordReset);
-router.post("/verify-password", authController.resetPasswordWithCode);
-module.exports = router;</pre></td></tr></table></pre>
+module.exports = router;
+&nbsp;</pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
             </div><!-- /wrapper -->

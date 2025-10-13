@@ -4,16 +4,18 @@ jest.mock("bcrypt", () => ({
   hash: jest.fn().mockResolvedValue("hashed_password"),
 }));
 
-jest.mock("../../src/utils/sendVerificationEmail", () => ({
+jest.mock("../../src/config/emailConfig", () => ({
   sendVerificationEmail: jest.fn().mockResolvedValue({ success: true }),
 }));
 
-jest.mock("../../src/utils/generateVerificationCode", () => ({
+jest.mock("../../src/config/emailConfig", () => ({
   generateVerificationCode: jest.fn().mockReturnValue("123456"),
 }));
 
-jest.mock("../../src/utils/validateAge", () => ({
+jest.mock("../../src/controllers/authController", () => ({
   validateAge: jest.fn().mockReturnValue(25),
 }));
+
+
 
 module.exports = { bcrypt };
