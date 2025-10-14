@@ -7,7 +7,7 @@ const isValidObjectId = (id) => /^[a-f\d]{24}$/i.test(id);
 // Listar todos los usuarios
 const getAllUsers = async (req, res) => {
   try {
-    const { role, departmentId, specialtyId, status } = req.query;
+    const { role, departmentId, specialtyId, status, page, limit } = req.query;
 
     let where = {};
     if (role) where.role = role;
@@ -15,14 +15,49 @@ const getAllUsers = async (req, res) => {
     if (specialtyId) where.specialtyId = specialtyId;
     if (status) where.status = status;
 
-    const users = await prisma.users.findMany({
-      where,
-      include: {
-        department: true,
-        specialty: true,
-      },
-    });
+    let users;
+    let total = 0;
 
+    // Si se envían parámetros de paginación, aplicar paginado
+    if (page || limit) {
+      const pageNumber = parseInt(page) || 1;
+      const pageSize = parseInt(limit) || 10;
+      const skip = (pageNumber - 1) * pageSize;
+
+      total = await prisma.users.count({ where });
+
+      users = await prisma.users.findMany({
+        where,
+        include: {
+          department: true,
+          specialty: true,
+        },
+        skip,
+        take: pageSize,
+        orderBy: { id: 'asc' }, // opcional
+      });
+
+      // Enviar total y totalPages en cabeceras
+      res
+        .set('X-Total-Count', total)
+        .set('X-Total-Pages', Math.ceil(total / pageSize))
+        .status(200)
+        .json(users);
+    } else {
+      // Si no hay paginación, devolver todos
+      users = await prisma.users.findMany({
+        where,
+        include: {
+          department: true,
+          specialty: true,
+        },
+        orderBy: { id: 'asc' },
+      });
+
+      res.status(200).json(users);
+    }
+
+    // Registrar evento exitoso
     await logEvent({
       userId: req.user.id,
       email: req.user.email,
@@ -33,20 +68,20 @@ const getAllUsers = async (req, res) => {
       ip: req.ip,
       userAgent: req.headers["user-agent"],
     });
-
-    res.status(200).json(users);
   } catch (error) {
-    console.log("Error fetching users:", error);
+    console.error("Error fetching users:", error);
+
     await logEvent({
       userId: req.user.id,
       email: req.user.email,
       role: req.user.role,
       action: "GET_ALL_USERS",
       outcome: "FAILURE",
-      reason: `Listó usuarios con filtros ${JSON.stringify(req.query)}`,
+      reason: `Error al listar usuarios con filtros ${JSON.stringify(req.query)}`,
       ip: req.ip,
       userAgent: req.headers["user-agent"],
     });
+
     res.status(500).json({ msg: "Error interno del servidor" });
   }
 };
@@ -55,14 +90,45 @@ const getAllUsers = async (req, res) => {
 const getUsersByRole = async (req, res) => {
   try {
     const { role } = req.params;
+    const { page, limit } = req.query;
 
-    const users = await prisma.users.findMany({
-      where: { role },
-      include: { department: true, specialty: true },
-    });
+    const where = { role };
+    let users;
 
-    if (users.length === 0) {
-      return res.status(404).json({ msg: `No se encontraron usuarios con el rol ${role}` });
+    if (page && limit) {
+      const pageNumber = parseInt(page);
+      const pageSize = parseInt(limit);
+
+      const [data, total] = await Promise.all([
+        prisma.users.findMany({
+          where,
+          skip: (pageNumber - 1) * pageSize,
+          take: pageSize,
+          include: { department: true, specialty: true },
+          orderBy: { id: 'asc' },
+        }),
+        prisma.users.count({ where }),
+      ]);
+
+      users = data;
+
+      res
+        .set('X-Total-Count', total)
+        .set('X-Total-Pages', Math.ceil(total / pageSize))
+        .status(200)
+        .json(users);
+    } else {
+      users = await prisma.users.findMany({
+        where,
+        include: { department: true, specialty: true },
+        orderBy: { id: 'asc' },
+      });
+
+      if (users.length === 0) {
+        return res.status(404).json({ msg: `No se encontraron usuarios con el rol ${role}` });
+      }
+
+      res.status(200).json(users);
     }
 
     await logEvent({
@@ -75,8 +141,6 @@ const getUsersByRole = async (req, res) => {
       ip: req.ip,
       userAgent: req.headers["user-agent"],
     });
-
-    res.status(200).json(users);
   } catch (error) {
     console.error("Error fetching users by role:", error);
     res.status(500).json({ msg: "Error interno del servidor", error: error.message });
@@ -87,26 +151,54 @@ const getUsersByRole = async (req, res) => {
 const getUsersByDepartment = async (req, res) => {
   try {
     const { departmentId } = req.params;
+    const { page, limit } = req.query;
 
     if (!isValidObjectId(departmentId)) {
       return res.status(400).json({ msg: "Formato de ID de departamento inválido" });
     }
 
-    const department = await prisma.department.findUnique({
-      where: { id: departmentId },
-    });
-
+    const department = await prisma.department.findUnique({ where: { id: departmentId } });
     if (!department) {
       return res.status(404).json({ msg: `No existe el departamento con id ${departmentId}` });
     }
 
-    const users = await prisma.users.findMany({
-      where: { departmentId },
-      include: { department: true, specialty: true },
-    });
+    const where = { departmentId };
+    let users;
 
-    if (users.length === 0) {
-      return res.status(404).json({ msg: `No hay usuarios asociados al departamento ${department.name}` });
+    if (page && limit) {
+      const pageNumber = parseInt(page);
+      const pageSize = parseInt(limit);
+
+      const [data, total] = await Promise.all([
+        prisma.users.findMany({
+          where,
+          skip: (pageNumber - 1) * pageSize,
+          take: pageSize,
+          include: { department: true, specialty: true },
+          orderBy: { id: 'asc' },
+        }),
+        prisma.users.count({ where }),
+      ]);
+
+      users = data;
+
+      res
+        .set('X-Total-Count', total)
+        .set('X-Total-Pages', Math.ceil(total / pageSize))
+        .status(200)
+        .json(users);
+    } else {
+      users = await prisma.users.findMany({
+        where,
+        include: { department: true, specialty: true },
+        orderBy: { id: 'asc' },
+      });
+
+      if (users.length === 0) {
+        return res.status(404).json({ msg: `No hay usuarios asociados al departamento ${department.name}` });
+      }
+
+      res.status(200).json(users);
     }
 
     await logEvent({
@@ -119,8 +211,6 @@ const getUsersByDepartment = async (req, res) => {
       ip: req.ip,
       userAgent: req.headers["user-agent"],
     });
-
-    res.status(200).json(users);
   } catch (error) {
     console.error("Error fetching users by department:", error);
     res.status(500).json({ msg: "Error interno del servidor", error: error.message });
@@ -131,26 +221,54 @@ const getUsersByDepartment = async (req, res) => {
 const getUsersBySpecialty = async (req, res) => {
   try {
     const { specialtyId } = req.params;
+    const { page, limit } = req.query;
 
     if (!isValidObjectId(specialtyId)) {
       return res.status(400).json({ msg: "Formato de ID de especialidad inválido" });
     }
 
-    const specialty = await prisma.specialty.findUnique({
-      where: { id: specialtyId },
-    });
-
+    const specialty = await prisma.specialty.findUnique({ where: { id: specialtyId } });
     if (!specialty) {
       return res.status(404).json({ msg: `No existe la especialidad con id ${specialtyId}` });
     }
 
-    const users = await prisma.users.findMany({
-      where: { specialtyId },
-      include: { department: true, specialty: true },
-    });
+    const where = { specialtyId };
+    let users;
 
-    if (users.length === 0) {
-      return res.status(404).json({ msg: `No hay usuarios asociados a la especialidad ${specialty.name}` });
+    if (page && limit) {
+      const pageNumber = parseInt(page);
+      const pageSize = parseInt(limit);
+
+      const [data, total] = await Promise.all([
+        prisma.users.findMany({
+          where,
+          skip: (pageNumber - 1) * pageSize,
+          take: pageSize,
+          include: { department: true, specialty: true },
+          orderBy: { id: 'asc' },
+        }),
+        prisma.users.count({ where }),
+      ]);
+
+      users = data;
+
+      res
+        .set('X-Total-Count', total)
+        .set('X-Total-Pages', Math.ceil(total / pageSize))
+        .status(200)
+        .json(users);
+    } else {
+      users = await prisma.users.findMany({
+        where,
+        include: { department: true, specialty: true },
+        orderBy: { id: 'asc' },
+      });
+
+      if (users.length === 0) {
+        return res.status(404).json({ msg: `No hay usuarios asociados a la especialidad ${specialty.name}` });
+      }
+
+      res.status(200).json(users);
     }
 
     await logEvent({
@@ -163,8 +281,6 @@ const getUsersBySpecialty = async (req, res) => {
       ip: req.ip,
       userAgent: req.headers["user-agent"],
     });
-
-    res.status(200).json(users);
   } catch (error) {
     console.error("Error fetching users by specialty:", error);
     res.status(500).json({ msg: "Error interno del servidor", error: error.message });
@@ -175,19 +291,50 @@ const getUsersBySpecialty = async (req, res) => {
 const getUsersByStatus = async (req, res) => {
   try {
     const { status } = req.params;
+    const { page, limit } = req.query;
     const normalizedStatus = status.toUpperCase();
 
     if (!["ACTIVE", "INACTIVE", "PENDING", "LOCKED"].includes(normalizedStatus)) {
       return res.status(400).json({ msg: "Estado inválido (use ACTIVE, INACTIVE, PENDING o LOCKED)" });
     }
 
-    const users = await prisma.users.findMany({
-      where: { status: normalizedStatus },
-      include: { department: true, specialty: true },
-    });
+    const where = { status: normalizedStatus };
+    let users;
 
-    if (users.length === 0) {
-      return res.status(404).json({ msg: `No se encontraron usuarios con estado ${normalizedStatus}` });
+    if (page && limit) {
+      const pageNumber = parseInt(page);
+      const pageSize = parseInt(limit);
+
+      const [data, total] = await Promise.all([
+        prisma.users.findMany({
+          where,
+          skip: (pageNumber - 1) * pageSize,
+          take: pageSize,
+          include: { department: true, specialty: true },
+          orderBy: { id: 'asc' },
+        }),
+        prisma.users.count({ where }),
+      ]);
+
+      users = data;
+
+      res
+        .set('X-Total-Count', total)
+        .set('X-Total-Pages', Math.ceil(total / pageSize))
+        .status(200)
+        .json(users);
+    } else {
+      users = await prisma.users.findMany({
+        where,
+        include: { department: true, specialty: true },
+        orderBy: { id: 'asc' },
+      });
+
+      if (users.length === 0) {
+        return res.status(404).json({ msg: `No se encontraron usuarios con estado ${normalizedStatus}` });
+      }
+
+      res.status(200).json(users);
     }
 
     await logEvent({
@@ -200,8 +347,6 @@ const getUsersByStatus = async (req, res) => {
       ip: req.ip,
       userAgent: req.headers["user-agent"],
     });
-
-    res.status(200).json(users);
   } catch (error) {
     console.error("Error fetching users by status:", error);
     res.status(500).json({ msg: "Error interno del servidor", error: error.message });

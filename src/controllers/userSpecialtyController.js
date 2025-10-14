@@ -97,6 +97,7 @@ const getSpecialtyUsers = async (req, res) => {
   try {
     const currentUser = req.user;
     const { specialtyId } = req.params;
+    const { page, limit } = req.query;
 
     const specialty = await prisma.specialty.findUnique({ where: { id: specialtyId } });
     if (!specialty) return res.status(404).json({ msg: "Especialidad no encontrada" });
@@ -105,10 +106,46 @@ const getSpecialtyUsers = async (req, res) => {
       return res.status(403).json({ msg: "Acceso denegado: especialidad fuera de tu departamento" });
     }
 
-    const users = await prisma.users.findMany({
-      where: { specialtyId },
-      include: { department: true }
-    });
+    const where = { specialtyId };
+    let users;
+
+    // 🔹 Si hay paginación
+    if (page && limit) {
+      const pageNumber = parseInt(page);
+      const pageSize = parseInt(limit);
+
+      const [data, total] = await Promise.all([
+        prisma.users.findMany({
+          where,
+          skip: (pageNumber - 1) * pageSize,
+          take: pageSize,
+          include: { department: true },
+          orderBy: { id: 'asc' },
+        }),
+        prisma.users.count({ where }),
+      ]);
+
+      users = data;
+
+      res
+        .set('X-Total-Count', total)
+        .set('X-Total-Pages', Math.ceil(total / pageSize))
+        .status(200)
+        .json(users);
+    } else {
+      // 🔹 Si no hay paginación, devolver todos
+      users = await prisma.users.findMany({
+        where,
+        include: { department: true },
+        orderBy: { id: 'asc' },
+      });
+
+      if (users.length === 0) {
+        return res.status(404).json({ msg: `No se encontraron usuarios para la especialidad ${specialty.name}` });
+      }
+
+      res.status(200).json(users);
+    }
 
     await logEvent({
       userId: req.user.id,
@@ -121,7 +158,6 @@ const getSpecialtyUsers = async (req, res) => {
       userAgent: req.headers["user-agent"],
     });
 
-    return res.json(users);
   } catch (err) {
     await logEvent({
       userId: req.user?.id,

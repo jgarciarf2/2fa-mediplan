@@ -52,20 +52,58 @@ const createDepartment = async (req, res) => {
 const getDepartments = async (req, res) => {
   try {
     const user = req.user;
-    let departments;
+    const { page, limit } = req.query;
+    const hasPagination = page && limit;
+    let departments, total;
 
-    if (user.role === "ADMIN") {
-      departments = await prisma.department.findMany({
-        include: { specialties: true, users: true }
-      });
+    if (hasPagination) {
+      const pageNum = parseInt(page);
+      const pageSize = parseInt(limit);
+      const skip = (pageNum - 1) * pageSize;
+
+      if (user.role === "ADMIN") {
+        [departments, total] = await Promise.all([
+          prisma.department.findMany({
+            include: { specialties: true, users: true },
+            skip,
+            take: pageSize,
+            orderBy: { id: "asc" },
+          }),
+          prisma.department.count(),
+        ]);
+      } else {
+        [departments, total] = await Promise.all([
+          prisma.department.findMany({
+            where: { id: user.departmentId },
+            include: { specialties: true, users: true },
+            skip,
+            take: pageSize,
+            orderBy: { id: "asc" },
+          }),
+          prisma.department.count({ where: { id: user.departmentId } }),
+        ]);
+      }
+
+      res
+        .set("X-Total-Count", total)
+        .set("X-Total-Pages", Math.ceil(total / pageSize))
+        .status(200)
+        .json(departments);
     } else {
-      departments = await prisma.department.findMany({
-        where: { id: user.departmentId },
-        include: { specialties: true, users: true }
-      });
-    }
+      // Sin paginación
+      if (user.role === "ADMIN") {
+        departments = await prisma.department.findMany({
+          include: { specialties: true, users: true },
+        });
+      } else {
+        departments = await prisma.department.findMany({
+          where: { id: user.departmentId },
+          include: { specialties: true, users: true },
+        });
+      }
 
-    return res.json(departments);
+      res.status(200).json(departments);
+    }
   } catch (err) {
     return res.status(500).json({ msg: "Error obteniendo departamentos: " + err.message });
   }

@@ -316,35 +316,35 @@ async function createPatientDemographics(validUsers, deptMap, specMap) {
 }
 
 async function createPatientHistories(validUsers) {
-  // 1️⃣ Tomar los correos de los pacientes cargados en el CSV
+  // Tomar los correos de los pacientes cargados en el CSV
   const patientEmails = validUsers
     .filter(u => u.role === "PACIENTE")
     .map(u => u.email)
     .filter(Boolean);
 
   if (patientEmails.length === 0) {
-    console.log("ℹ️ No hay pacientes en la carga actual.");
+    console.log("No hay pacientes en la carga actual.");
     return;
   }
 
-  // 2️⃣ Buscar sus usuarios recién insertados en la BD
+  // Buscar sus usuarios recién insertados en la BD
   const patients = await prisma.users.findMany({
     where: { email: { in: patientEmails } },
     select: { id: true, email: true },
   });
 
-  // 3️⃣ Buscar sus datos demográficos
+  // Buscar sus datos demográficos
   const demographics = await prisma.patientDemographics.findMany({
     where: { userId: { in: patients.map(p => p.id) } },
     select: { id: true, userId: true },
   });
 
   if (demographics.length === 0) {
-    console.log("ℹ️ No se encontraron registros demográficos para estos pacientes.");
+    console.log("No se encontraron registros demográficos para estos pacientes.");
     return;
   }
 
-  // 4️⃣ Consultar los que ya tienen historia clínica
+  // Consultar los que ya tienen historia clínica
   const existingHistories = await prisma.patientHistory.findMany({
     where: { patientId: { in: demographics.map(d => d.id) } },
     select: { patientId: true },
@@ -366,7 +366,7 @@ async function createPatientHistories(validUsers) {
     await prisma.patientHistory.createMany({ data: newHistories });
     console.log(`🩺 Se crearon ${newHistories.length} historias clínicas nuevas.`);
   } else {
-    console.log("✅ Todos los pacientes ya tenían historia clínica.");
+    console.log("Todos los pacientes ya tenían historia clínica.");
   }
 }
 

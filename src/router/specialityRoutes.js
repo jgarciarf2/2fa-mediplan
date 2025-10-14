@@ -9,6 +9,7 @@ const router = express.Router();
 // Rutas públicas
 router.get("/", authenticateJWT, authorize(["ADMIN", "MEDICO", "ENFERMERO"]), specialtyController.getSpecialties);
 router.get("/:id", authenticateJWT, authorize(["ADMIN", "MEDICO", "ENFERMERO"]), specialtyController.getSpecialtyById);
+router.get('/departmentId/:departmentId/', authenticateJWT, authorize(["ADMIN", "MEDICO", "ENFERMERO"]), specialtyController.getSpecialtiesByDepartment);
 // Rutas protegidas (solo ADMIN)
 router.post("/", authenticateJWT, authorize(["ADMIN"]), specialtyController.createSpecialty);
 router.put("/:id", authenticateJWT, authorize(["ADMIN"]), specialtyController.updateSpecialty);

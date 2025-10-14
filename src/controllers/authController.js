@@ -110,7 +110,7 @@ const signUp = async (req, res) => {
         data: {
           userId: createUser.id,
           fullName: fullname,
-          dateOfBirth: dob,
+          date_of_birth: dob,
           age,
           phone: phone || null,
           departmentId: departmentId || null,

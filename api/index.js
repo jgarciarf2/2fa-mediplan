@@ -18,25 +18,13 @@ console.log('PORT:', port);
 
 const app = express();
 
-if (process.env.NODE_ENV === "test") {
-  const testRoutes = require("../src/router/testRoutes");
-  app.use("/api/v1/test", testRoutes);
-} else {
-  const routes = require("../src/router/routes");
-  app.use("/api/v1", routes);
-}
-
-
-const server = app.listen(port, () => {
-  console.log(`Servidor local corriendo en http://localhost:${port}`);
-})
-
+// Configuración de CORS
 app.use(cors({
     origin: process.env.FRONTEND_PORT,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    optionsSuccessStatus: 200 // Para soportar navegadores legacy
+    optionsSuccessStatus: 200
 }));
 
 // Middleware: POST, PUT, PATCH
@@ -48,11 +36,19 @@ app.use((req, res, next) => {
     next();
 });
 
+app.use('/api/v1', routes);
+
+if (process.env.NODE_ENV === "test") {
+  const testRoutes = require("../src/router/testRoutes");
+  app.use("/api/v1/test", testRoutes);
+} else {
+  const routes = require("../src/router/routes");
+  app.use("/api/v1", routes);
+}
+
 app.get('/', (req, res) => {
   res.json({ mensaje: 'Servidor activo 🚀' });
 });
-
-app.use('/api/v1', routes);
 
 // Middleware para manejar rutas no encontradas
 app.use((req, res) => {
@@ -60,8 +56,9 @@ app.use((req, res) => {
     res.status(404).json({ error: 'Ruta no encontrada' });
 });
 
-module.exports = {app, server}; // exporta la app
-module.exports.handler = serverless(app); // handler que usa Vercel
+const server = app.listen(port, () => {
+  console.log(`Servidor local corriendo en http://localhost:${port}`);
+})
 
 if (require.main === module) {
   const port = process.env.PORT || 3002;
@@ -72,3 +69,6 @@ if (require.main === module) {
 
 // Iniciar el servidor 
 database();
+
+module.exports = {app, server}; // exporta la app
+module.exports.handler = serverless(app); // handler que usa Vercel
