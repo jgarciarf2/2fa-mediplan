@@ -23,7 +23,7 @@ async function indexPatient(patient) {
   });
 }
 
-// Crear paciente
+// Crear demografía e historia clínica del paciente
 const createPatient = async (req, res) => {
   try {
     const { userId, gender, phone, address, departmentId, specialtyId } = req.body;
@@ -186,6 +186,56 @@ const getPatientById = async (req, res) => {
   }
 };
 
+// Obtener demografía del paciente por ID de usuario
+const getPatientByUserId = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const patient = await prisma.patientDemographics.findUnique({
+      where: { userId },
+      include: {
+        user: true,
+        department: true,
+        specialty: true,
+        patientHistory: true
+      }
+    });
+
+    if (!patient) {
+      return res.status(404).json({ msg: "No se encontró una demografía asociada a este usuario." });
+    }
+
+    await logEvent({
+      userId: req.user.id,
+      email: req.user.email,
+      role: req.user.role,
+      action: "GET_DEMOGRAPHIC_PATIENT_BY_USER_ID",
+      outcome: "SUCCESS",
+      reason: `Se obtuvo demografía del paciente con userId ${userId}`,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    return res.status(200).json(patient);
+  } catch (err) {
+    await logEvent({
+      userId: req.user?.id,
+      email: req.user?.email,
+      role: req.user?.role,
+      action: "GET_DEMOGRAPHIC_PATIENT_BY_USER_ID",
+      outcome: "FAILURE",
+      reason: err.message,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    return res.status(500).json({
+      msg: "Error obteniendo demografía del paciente por ID de usuario",
+      error: err.message
+    });
+  }
+};
+
 // Actualizar paciente
 const updatePatient = async (req, res) => {
   const { id } = req.params;
@@ -275,5 +325,6 @@ module.exports = {
   getAllPatients,
   getPatientById,
   updatePatient,
-  deletePatient
+  deletePatient,
+  getPatientByUserId
 };
