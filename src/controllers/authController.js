@@ -419,12 +419,7 @@ const verify2faLogin = async (req, res) => {
     ip: req.ip,
     userAgent: req.headers["user-agent"],
   });
-  // Nota: la consulta de `patientHistory` se omite aquí porque el cliente Prisma
-  // generado en este repo no incluye el modelo `PatientHistory` (esto causa
-  // `prisma.patientHistory` === undefined). Si necesitas usar la historia
-  // médica, regenera el cliente Prisma (`npx prisma generate`) o añade una
-  // comprobación antes de invocar el método.
-
+  
   return res.status(200).json({
     msg: "Inicio de sesión exitoso.",
     accessToken,
