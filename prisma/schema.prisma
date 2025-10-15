@@ -44,7 +44,6 @@ model Department {
   name                String                @unique
   users               Users[]
   specialties         Specialty[]
-  patientDemographics PatientDemographics[]
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
 }
@@ -55,7 +54,6 @@ model Specialty {
   departmentId        String                @db.ObjectId
   department          Department            @relation(fields: [departmentId], references: [id], onDelete: Cascade)
   users               Users[]
-  patientDemographics PatientDemographics[]
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
 
@@ -74,8 +72,6 @@ model PatientDemographics {
   address       String?
   departmentId  String?     @db.ObjectId
   specialtyId   String?     @db.ObjectId
-  department    Department? @relation(fields: [departmentId], references: [id])
-  specialty     Specialty?  @relation(fields: [specialtyId], references: [id])
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 

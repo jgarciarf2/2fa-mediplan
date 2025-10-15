@@ -4,6 +4,7 @@ const database = require('../src/config/database');
 const routes = require('../src/router/routes');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const path = require("path");
 
 //elastic para búsqueda avanzada de paciventes
 const { createPatientIndex } = require("../src/config/elasticSetup");
@@ -38,10 +39,7 @@ app.use(cors({
 app.use(bodyParser.json());
 
 // Debug middleware para ver todas las peticiones
-app.use((req, res, next) => {
-    console.log(`${req.method} ${req.path}`);
-    next();
-});
+
 
 app.use('/api/v1', routes);
 
@@ -51,6 +49,7 @@ if (process.env.NODE_ENV === "test") {
 } else {
   const routes = require("../src/router/routes");
   app.use("/api/v1", routes);
+  app.use("/uploads", express.static(path.join(__dirname, "uploads")))
 }
 
 app.get('/', (req, res) => {
