@@ -32,6 +32,7 @@ const validateAge = (dob) => {
 const signUp = async (req, res) => {
     let { email, current_password, fullname, role, departmentId, specialtyId, date_of_birth,
           phone, license_number } = req.body;
+          
     if (!email || !current_password || !fullname || !date_of_birth) {
         return res.status(400).json({ msg: "Faltan datos obligatorios." });
     }
@@ -106,7 +107,7 @@ const signUp = async (req, res) => {
 
     // Si el rol es PACIENTE, crear registro en patientDemographics
     if (createUser.role === 'PACIENTE') {
-      await prisma.patientDemographics.create({
+      const patient = await prisma.patientDemographics.create({
         data: {
           userId: createUser.id,
           fullName: fullname,
@@ -117,7 +118,17 @@ const signUp = async (req, res) => {
           specialtyId: specialtyId || null
         }
       });
+
+      prisma.patientHistory.create({
+        data: {
+          patientId: patient.id,
+          allergies: null,
+          chronicDiseases: null,
+          bloodType: null
+        }
+      }).catch(err => console.error("Error creando historia clínica:", err));
     }
+
     const emailResult = await sendVerificationEmail(email, fullname, verificationCode);
     if (!emailResult.success) {
         //si hay un error borramos el usuario creado
