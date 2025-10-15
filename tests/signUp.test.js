@@ -6,7 +6,6 @@ const {app, server} = require("../api/index");
 const bcrypt = require("bcryptjs");
 
 
-
 describe("POST /signup", () => {
 
   beforeEach(() => {

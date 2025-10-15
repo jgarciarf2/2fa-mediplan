@@ -18,7 +18,14 @@ console.log('PORT:', port);
 
 const app = express();
 
+<<<<<<< Updated upstream
 // Configuración de CORS
+=======
+const server = app.listen(port, () => {
+  console.log(`Servidor local corriendo en http://localhost:${port}`);
+})
+
+>>>>>>> Stashed changes
 app.use(cors({
     origin: process.env.FRONTEND_PORT,
     credentials: true,
