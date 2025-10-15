@@ -443,11 +443,17 @@ const verify2faLogin = async (req, res) => {
     ip: req.ip,
     userAgent: req.headers["user-agent"],
   });
-
+  
   return res.status(200).json({
     msg: "Inicio de sesión exitoso.",
     accessToken,
-    refreshToken
+    refreshToken, 
+    user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        patientHistoryId: user.patientHistoryId || null,
+    }
   });
 };
 
