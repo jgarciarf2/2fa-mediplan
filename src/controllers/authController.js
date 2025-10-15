@@ -419,6 +419,10 @@ const verify2faLogin = async (req, res) => {
     ip: req.ip,
     userAgent: req.headers["user-agent"],
   });
+// Buscar historia médica asociada al usuario (si aplica)
+  const patientHistory = await prisma.patientHistory.findFirst({
+    where: { userId: user.id },
+  });
 
   return res.status(200).json({
     msg: "Inicio de sesión exitoso.",
@@ -431,27 +435,6 @@ const verify2faLogin = async (req, res) => {
         patientHistoryId: user.patientHistoryId || null,
     }
   });
-
-  // Buscar historia médica asociada al usuario (si aplica)
-  const patientHistory = await prisma.patientHistory.findFirst({
-    where: { userId: user.id },
-  });
-
-  // Enviar datos completos al frontend
-  return res.status(200).json({
-    msg: "Inicio de sesión exitoso.",
-    accessToken,
-    refreshToken,
-    user: {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      departmentId: user.departmentId,
-      patientHistoryId: patientHistory?.id || null
-    }
-  });
-
-
 };
 
 const refreshToken = async (req, res) => {
