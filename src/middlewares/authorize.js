@@ -1,22 +1,31 @@
 const { PrismaClient } = require("../generated/prisma");
 const prisma = new PrismaClient();
 
-// Middleware de autorización basado en roles, departamentos y especialidades
 const authorize = (allowedRoles = [], allowedDepartments = [], allowedSpecialties = []) => {
   return async (req, res, next) => {
     const user = req.user;
 
-    // Rol
+    // Verificar rol
     if (allowedRoles.length && !allowedRoles.includes(user.role)) {
-      return res.status(403).json({ msg: "Acceso denegado: rol inválido" });
+      return res.status(403).json({
+        success: false,
+        message: "No tienes permisos para acceder a este recurso",
+        requiredRole: allowedRoles,
+        yourRole: user.role
+      });
     }
 
-    // Departamento
+    // Verificar departamento
     if (allowedDepartments.length && !allowedDepartments.includes(user.departmentId)) {
-      return res.status(403).json({ msg: "Acceso denegado: departamento inválido" });
+      return res.status(403).json({
+        success: false,
+        message: "Acceso denegado: departamento inválido",
+        requiredDepartments: allowedDepartments,
+        yourDepartment: user.departmentId
+      });
     }
 
-    // Especialidades
+    // Verificar especialidades
     if (allowedSpecialties.length) {
       const userSpecialties = await prisma.userSpecialty.findMany({
         where: { userId: user.userId },
@@ -26,10 +35,14 @@ const authorize = (allowedRoles = [], allowedDepartments = [], allowedSpecialtie
 
       const hasSpecialty = allowedSpecialties.some(spec => userSpecialtyIds.includes(spec));
       if (!hasSpecialty) {
-        return res.status(403).json({ msg: "Acceso denegado: especialidad inválida" });
+        return res.status(403).json({
+          success: false,
+          message: "Acceso denegado: especialidad inválida",
+          requiredSpecialties: allowedSpecialties,
+          yourSpecialties: userSpecialtyIds
+        });
       }
     }
-
     next();
   };
 };

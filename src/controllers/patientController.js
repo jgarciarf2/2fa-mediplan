@@ -2,6 +2,62 @@ const { PrismaClient } = require("../generated/prisma");
 const prisma = new PrismaClient();
 const { logEvent } = require("../services/auditService");
 const client = require("../config/elasticClient");
+const diagnosticService = require("../services/diagnostic.service");
+
+// Crear diagnóstico para un paciente (con posibilidad de subir documentos)
+const createDiagnostic = async (req, res) => {
+  console.log("🧩 Payload del token:", req.user);
+  try {
+    const { patientId } = req.params;
+    const doctorId = req.user.userId;
+    const files = req.files; // Array de archivos de multer
+
+    // Validar campos requeridos
+    const { title, description, symptoms, diagnosis, treatment } = req.body;
+
+    if (!title || !description || !symptoms || !diagnosis || !treatment) {
+      // Si hay error, eliminar archivos subidos
+      if (files && files.length > 0) {
+        const fs = require("fs").promises;
+        for (const file of files) {
+          try {
+            await fs.unlink(file.path);
+        } catch (error) {
+          console.error("Error eliminando archivo:", error);
+        }
+      }
+    }
+
+      return res.status(400).json({
+        message: "Faltan campos obligatorios",
+        required: [
+          "title",
+          "description",
+          "symptoms",
+          "diagnosis",
+          "treatment",
+        ],
+      });
+    }
+
+    const diagnostic = await diagnosticService.createDiagnostic(
+      patientId,
+      doctorId,
+      req.body,
+      files
+    );
+
+    return res.status(201).json({
+      message: "Diagnóstico creado exitosamente",
+      data: diagnostic,
+    });
+  } catch (error) {
+    console.error("Error creando diagnóstico:", error);
+    return res.status(400).json({
+      message: error.message || "Error al crear diagnóstico",
+    });
+  }
+};
 
 // Indexación de paciente para búsquedas avanzadas
 async function indexPatient(patient) {
@@ -15,8 +71,6 @@ async function indexPatient(patient) {
       age: patient.age,
       gender: patient.gender,
       address: patient.address,
-      departmentId: patient.departmentId,
-      specialtyId: patient.specialtyId,
       diagnosis: patient.patientHistory?.medicalRecords?.map(r => r.diagnosis).join(", ") || "",
       createdAt: patient.createdAt
     }
@@ -26,7 +80,7 @@ async function indexPatient(patient) {
 // Crear demografía e historia clínica del paciente
 const createPatient = async (req, res) => {
   try {
-    const { userId, gender, phone, address, departmentId, specialtyId } = req.body;
+    const { userId, gender, phone, address } = req.body;
 
     const user = await prisma.users.findUnique({ where: { id: userId } });
     if (!user) return res.status(404).json({ msg: "Usuario no encontrado" });
@@ -43,7 +97,7 @@ const createPatient = async (req, res) => {
     const dob = new Date(user.date_of_birth);
     const age = new Date().getFullYear() - dob.getFullYear();
 
-    // 🔒 Transacción para crear ambos registros juntos (demografía + historia)
+    // Transacción para crear ambos registros juntos (demografía + historia)
     const [patient, history] = await prisma.$transaction([
       prisma.patientDemographics.create({
         data: {
@@ -54,8 +108,6 @@ const createPatient = async (req, res) => {
           gender: gender || null,
           phone: phone || null,
           address: address || null,
-          departmentId: departmentId || null,
-          specialtyId: specialtyId || null,
         },
       }),
       prisma.patientHistory.create({
@@ -68,7 +120,7 @@ const createPatient = async (req, res) => {
       }),
     ]);
 
-    // ⚠️ Ajuste: necesitamos asignar patientId al crear la historia
+    // Ajuste: necesitamos asignar patientId al crear la historia
     await prisma.patientHistory.update({
       where: { id: history.id },
       data: { patientId: patient.id },
@@ -114,7 +166,7 @@ const createPatient = async (req, res) => {
 const getAllPatients = async (req, res) => {
   try {
     const patients = await prisma.patientDemographics.findMany({
-      include: { user: true, department: true, specialty: true, patientHistory: true}
+      include: { user: true, patientHistory: true}
     });
 
     await logEvent({
@@ -151,7 +203,7 @@ const getPatientById = async (req, res) => {
   try {
     const patient = await prisma.patientDemographics.findUnique({
       where: { id },
-      include: { user: true, department: true, specialty: true, patientHistory: true }
+      include: { user: true, patientHistory: true }
     });
 
     if (!patient) {
@@ -195,8 +247,6 @@ const getPatientByUserId = async (req, res) => {
       where: { userId },
       include: {
         user: true,
-        department: true,
-        specialty: true,
         patientHistory: true
       }
     });
@@ -326,5 +376,6 @@ module.exports = {
   getPatientById,
   updatePatient,
   deletePatient,
-  getPatientByUserId
+  getPatientByUserId,
+  createDiagnostic
 };

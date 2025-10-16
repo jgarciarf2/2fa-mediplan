@@ -40,42 +40,43 @@ model Users {
 }
 
 model Department {
-  id                  String                @id @default(auto()) @map("_id") @db.ObjectId
-  name                String                @unique
-  users               Users[]
-  specialties         Specialty[]
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  name        String      @unique
+  users       Users[]
+  specialties Specialty[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 }
 
 model Specialty {
-  id                  String                @id @default(auto()) @map("_id") @db.ObjectId
-  name                String
-  departmentId        String                @db.ObjectId
-  department          Department            @relation(fields: [departmentId], references: [id], onDelete: Cascade)
-  users               Users[]
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  departmentId String     @db.ObjectId
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  users        Users[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   @@unique([name, departmentId])
 }
 
 model PatientDemographics {
-  id            String      @id @default(auto()) @map("_id") @db.ObjectId
-  userId        String      @unique @db.ObjectId
-  user          Users       @relation("UserPatientDemographics", fields: [userId], references: [id], onDelete: Cascade)
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String    @unique @db.ObjectId
+  user          Users     @relation("UserPatientDemographics", fields: [userId], references: [id], onDelete: Cascade)
   fullName      String
   date_of_birth DateTime?
   age           Int?
   gender        String?
   phone         String?
   address       String?
-  departmentId  String?     @db.ObjectId
-  specialtyId   String?     @db.ObjectId
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  departmentId  String?   @db.ObjectId
+  specialtyId   String?   @db.ObjectId
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   patientHistory PatientHistory?
+  medicalRecords MedicalRecord[]
 }
 
 model PatientHistory {
@@ -91,18 +92,45 @@ model PatientHistory {
 }
 
 model MedicalRecord {
-  id               String         @id @default(auto()) @map("_id") @db.ObjectId
-  patientHistoryId String         @db.ObjectId
-  patientHistory   PatientHistory @relation(fields: [patientHistoryId], references: [id], onDelete: Cascade)
-  doctorId         String?        @db.ObjectId
-  doctor           Users?         @relation(fields: [doctorId], references: [id], onDelete: SetNull)
-  date             DateTime       @default(now())
+  id               String               @id @default(auto()) @map("_id") @db.ObjectId
+  patientHistoryId String?              @db.ObjectId
+  patientHistory   PatientHistory?      @relation(fields: [patientHistoryId], references: [id], onDelete: Cascade)
+  patientId        String               @db.ObjectId
+  patient          PatientDemographics  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId         String?              @db.ObjectId
+  doctor           Users?               @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  date             DateTime             @default(now())
+  title            String
+  description      String
+  symptoms         String
   reasonForVisit   String?
   diagnosis        String
   treatment        String?
+  observations     String?
+  diagnisticDate   DateTime?            @default(now())
+  nextAppointment  DateTime?
+  state            DiagnisticState      @default(ACTIVE)
   notes            String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  documents        DiagnosticDocument[]
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+}
+
+model DiagnosticDocument {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  diagnosticId   String        @db.ObjectId
+  diagnostic     MedicalRecord @relation(fields: [diagnosticId], references: [id], onDelete: Cascade)
+  filename       String // Nombre original
+  storedFilename String // Nombre en servidor
+  filePath       String // Ruta completa
+  fileType       String // pdf, jpg, png, etc
+  mimeType       String // application/pdf, image/jpeg
+  fileSize       Int // Tamaño en bytes
+  description    String?
+  uploadedBy     String        @db.ObjectId
+  createdAt      DateTime      @default(now())
+
+  @@index([diagnosticId])
 }
 
 model AuditLog {
@@ -139,4 +167,10 @@ enum Status {
   ACTIVE
   INACTIVE
   LOCKED
+}
+
+enum DiagnisticState {
+  ACTIVE
+  ARCHIVED
+  DELETED
 }
