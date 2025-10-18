@@ -6,7 +6,7 @@ const authorize = require('../middlewares/authorize');
 
 // http://localhost:3002/api/v1/users
 router.get("/", authenticateJWT, authorize(["ADMIN"]), userController.getAllUsers);
-router.get("/role/:role", authenticateJWT, authorize(["ADMIN"]), userController.getUsersByRole);
+router.get("/role/:role", authenticateJWT, authorize(["ADMIN", "MEDICO"]), userController.getUsersByRole);
 router.get("/department/:departmentId", authenticateJWT, authorize(["ADMIN"]), userController.getUsersByDepartment);
 router.get("/specialty/:specialtyId", authenticateJWT, authorize(["ADMIN"]), userController.getUsersBySpecialty);
 router.get("/status/:status", authenticateJWT, authorize(["ADMIN"]), userController.getUsersByStatus);
