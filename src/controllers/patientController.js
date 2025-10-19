@@ -6,7 +6,7 @@ const diagnosticService = require("../services/diagnostic.service");
 
 // Crear diagnóstico para un paciente (con posibilidad de subir documentos)
 const createDiagnostic = async (req, res) => {
-  console.log("🧩 Payload del token:", req.user);
+  console.log("Payload del token:", req.user);
   try {
     const { patientId } = req.params;
     const doctorId = req.user.userId;
@@ -76,6 +76,31 @@ async function indexPatient(patient) {
     }
   });
 }
+
+// Obtener todos los diagnósticos de un paciente
+const getDiagnosticsByPatientId = async (req, res) => {
+  const { patientId } = req.params;
+
+  try {
+    const diagnostics = await prisma.medicalRecord.findMany({
+      where: { patientId },
+      include: {
+        doctor: { select: { fullname: true, email: true } },
+        documents: true // si guardas documentos adjuntos
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (diagnostics.length === 0) {
+      return res.status(404).json({ msg: "No se encontraron diagnósticos para este paciente." });
+    }
+
+    return res.status(200).json(diagnostics);
+  } catch (error) {
+    console.error("Error obteniendo diagnósticos:", error);
+    return res.status(500).json({ msg: "Error al obtener los diagnósticos del paciente", error: error.message });
+  }
+};
 
 // Crear demografía e historia clínica del paciente
 const createPatient = async (req, res) => {
@@ -377,5 +402,6 @@ module.exports = {
   updatePatient,
   deletePatient,
   getPatientByUserId,
-  createDiagnostic
+  createDiagnostic,
+  getDiagnosticsByPatientId
 };

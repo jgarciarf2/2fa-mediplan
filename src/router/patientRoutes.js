@@ -14,10 +14,11 @@ router.get('/', authenticateJWT, authorize(["ADMIN"]), patientService.getAllPati
 router.get('/advanced-search', authenticateJWT, authorize(["ADMIN", "MEDICO"]), searchController.searchPatients);
 
 router.get('/:id', authenticateJWT, authorize(["ADMIN"]), patientService.getPatientById);
-router.get('/user/:userId', authenticateJWT, authorize(["ADMIN"]), patientService.getPatientByUserId);
+router.get('/user/:userId', authenticateJWT, authorize(["ADMIN", "MEDICO"]), patientService.getPatientByUserId);
 router.put('/:id', authenticateJWT, authorize(["ADMIN"]), patientService.updatePatient);
 router.delete('/:id', authenticateJWT, authorize(["ADMIN"]), patientService.deletePatient);
 
 router.post('/:patientId/diagnostics', authenticateJWT, authorize(["MEDICO"]), uploadMultiple, patientService.createDiagnostic);
+router.get('/diagnostics/user/:patientId', authenticateJWT, authorize(["MEDICO"]), uploadMultiple, patientService.getDiagnosticsByPatientId);
 
 module.exports = router;
