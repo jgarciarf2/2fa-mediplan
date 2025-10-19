@@ -108,6 +108,20 @@ class DiagnosticService {
       throw error;
     }
   }
+
+  // Buscar documento por ID
+  async findDocumentById(id) {
+    return await prisma.diagnosticDocument.findUnique({
+      where: { id },
+    });
+  }
+
+  // Eliminar referencia del documento
+  async deleteDocumentReference(id) {
+    return await prisma.diagnosticDocument.delete({
+      where: { id },
+    });
+  }
 }
 
 module.exports = new DiagnosticService();

@@ -20,5 +20,8 @@ router.delete('/:id', authenticateJWT, authorize(["ADMIN"]), patientService.dele
 
 router.post('/:patientId/diagnostics', authenticateJWT, authorize(["MEDICO"]), uploadMultiple, patientService.createDiagnostic);
 router.get('/diagnostics/user/:patientId', authenticateJWT, authorize(["MEDICO"]), uploadMultiple, patientService.getDiagnosticsByPatientId);
+router.get("/documents/:id", authenticateJWT, authorize(["MEDICO"]), patientService.downloadDocument);
+router.delete("/documents/:id", authenticateJWT, authorize(["MEDICO"]), patientService.deleteDocument);
+
 
 module.exports = router;
