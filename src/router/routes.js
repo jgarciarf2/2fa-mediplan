@@ -11,6 +11,7 @@ const bulkRoutes = require('./bulkRoutes');
 const patientRoutes = require('./patientRoutes');
 const medicalRecordRoutes = require('./medicalRecordRoutes');
 const patientHistoryRoutes = require('./patientHistoryRoutes');
+const documentRoutes = require('./documentRoutes');
 
 const { getAuditLogs } = require('../controllers/auditController');
 
@@ -36,5 +37,7 @@ router.use('/patients', patientRoutes);
 router.use("/test", testRoutes);
 router.use('/medicalRecords', medicalRecordRoutes);
 router.use('/patientHistories', patientHistoryRoutes);
+router.use('/documents', documentRoutes);
+
 
 module.exports = router;
