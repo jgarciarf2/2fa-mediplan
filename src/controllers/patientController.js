@@ -77,18 +77,59 @@ async function indexPatient(patient) {
   });
 }
 
-// Obtener todos los diagnósticos de un paciente
+// Obtener diagnósticos de un paciente con paginación
 const getDiagnosticsByPatientId = async (req, res) => {
   const { patientId } = req.params;
+  const { page, limit } = req.query;
 
   try {
-    const diagnostics = await prisma.medicalRecord.findMany({
+    // Validar que se haya enviado el ID del paciente
+    if (!patientId) {
+      return res.status(400).json({ msg: "Se requiere el ID del paciente." });
+    }
+
+    let diagnostics;
+
+    // Si hay paginación (page y limit)
+    if (page && limit) {
+      const pageNumber = parseInt(page);
+      const pageSize = parseInt(limit);
+
+      const [data, total] = await Promise.all([
+        prisma.medicalRecord.findMany({
+          where: { patientId },
+          include: {
+            doctor: { select: { fullname: true, email: true } },
+            documents: true,
+          },
+          skip: (pageNumber - 1) * pageSize,
+          take: pageSize,
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.medicalRecord.count({ where: { patientId } }),
+      ]);
+
+      diagnostics = data;
+
+      if (diagnostics.length === 0) {
+        return res.status(404).json({ msg: "No se encontraron diagnósticos para este paciente." });
+      }
+
+      return res
+        .set('X-Total-Count', total)
+        .set('X-Total-Pages', Math.ceil(total / pageSize))
+        .status(200)
+        .json(diagnostics);
+    }
+
+    // Si no hay paginación, listar todo
+    diagnostics = await prisma.medicalRecord.findMany({
       where: { patientId },
       include: {
         doctor: { select: { fullname: true, email: true } },
-        documents: true // si guardas documentos adjuntos
+        documents: true,
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
     if (diagnostics.length === 0) {
@@ -98,10 +139,12 @@ const getDiagnosticsByPatientId = async (req, res) => {
     return res.status(200).json(diagnostics);
   } catch (error) {
     console.error("Error obteniendo diagnósticos:", error);
-    return res.status(500).json({ msg: "Error al obtener los diagnósticos del paciente", error: error.message });
+    return res.status(500).json({
+      msg: "Error al obtener los diagnósticos del paciente",
+      error: error.message,
+    });
   }
 };
-
 
 // Crear demografía e historia clínica del paciente
 const createPatient = async (req, res) => {
@@ -188,11 +231,55 @@ const createPatient = async (req, res) => {
   }
 };
 
-// Obtener todos los pacientes
+// Obtener todos los pacientes con paginación
 const getAllPatients = async (req, res) => {
   try {
-    const patients = await prisma.patientDemographics.findMany({
-      include: { user: true, patientHistory: true}
+    const { page, limit } = req.query;
+    let patients;
+
+    // Si hay paginación
+    if (page && limit) {
+      const pageNumber = parseInt(page);
+      const pageSize = parseInt(limit);
+
+      const [data, total] = await Promise.all([
+        prisma.patientDemographics.findMany({
+          skip: (pageNumber - 1) * pageSize,
+          take: pageSize,
+          include: { user: true, patientHistory: true },
+          orderBy: { id: 'asc' },
+        }),
+        prisma.patientDemographics.count(),
+      ]);
+
+      patients = data;
+
+      if (patients.length === 0) {
+        return res.status(404).json({ msg: "No se encontraron pacientes." });
+      }
+
+      await logEvent({
+        userId: req.user.id,
+        email: req.user.email,
+        role: req.user.role,
+        action: "GET_ALL_DEMOGRAPHICS_PATIENTS",
+        outcome: "SUCCESS",
+        reason: `Se obtuvieron ${patients.length} pacientes (página ${pageNumber}) correctamente`,
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      return res
+        .set('X-Total-Count', total)
+        .set('X-Total-Pages', Math.ceil(total / pageSize))
+        .status(200)
+        .json(patients);
+    }
+
+    // Si no hay paginación, listar todo
+    patients = await prisma.patientDemographics.findMany({
+      include: { user: true, patientHistory: true },
+      orderBy: { id: 'asc' },
     });
 
     await logEvent({
@@ -201,13 +288,15 @@ const getAllPatients = async (req, res) => {
       role: req.user.role,
       action: "GET_ALL_DEMOGRAPHICS_PATIENTS",
       outcome: "SUCCESS",
-      reason: `Se obtuvieron ${patients.length} demografias de los pacientes correctamente`,
+      reason: `Se obtuvieron ${patients.length} demografías de pacientes correctamente (sin paginación)`,
       ip: req.ip,
       userAgent: req.headers["user-agent"],
     });
 
     return res.status(200).json(patients);
   } catch (err) {
+    console.error("Error obteniendo pacientes:", err);
+
     await logEvent({
       userId: req.user?.id,
       email: req.user?.email,
@@ -219,7 +308,10 @@ const getAllPatients = async (req, res) => {
       userAgent: req.headers["user-agent"],
     });
 
-    return res.status(500).json({ msg: "Error obteniendo la demografia de los pacientes", error: err.message });
+    return res.status(500).json({
+      msg: "Error obteniendo la demografía de los pacientes",
+      error: err.message,
+    });
   }
 };
 
